@@ -31,7 +31,7 @@ string Encode(const string& number)
         return "";
     }
 
-    string bits = Marker;
+    string bits = Marker; //start marker
 
     for(int i = 0; i < 6; i++)
     {
