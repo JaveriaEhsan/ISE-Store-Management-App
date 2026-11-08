@@ -1,68 +1,58 @@
-# Prerequisites
-*.d
-
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Linker files
-*.ilk
-
-# Debugger Files
-*.pdb
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-*.so.*
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
-# Build directories
+# ===== Build folders =====
 build/
-Build/
-build-*/
+out/
+cmake-build-*/
+bin/
+obj/
+Debug/
+Release/
+x64/
+x86/
 
-# CMake generated files
-CMakeFiles/
+# ===== CMake generated files =====
 CMakeCache.txt
+CMakeFiles/
 cmake_install.cmake
 Makefile
-install_manifest.txt
+CMakeSettings.json
+CMakeUserPresets.json
 compile_commands.json
 
-# Temporary files
-*.tmp
+# ===== Visual Studio / VS Code personal files =====
+.vs/
+.vscode/
+*.user
+*.suo
+*.sln.docstates
+*.vcxproj.user
+*.ipch
+*.VC.db
+*.VC.VC.opendb
+
+# ===== Compiled files =====
+*.exe
+*.obj
+*.o
+*.out
+*.dll
+*.lib
+*.a
+*.so
+*.pdb
+*.ilk
+*.exp
+*.idb
 *.log
-*.bak
-*.swp
 
-# vcpkg
-vcpkg_installed/
+# ===== Generated barcode images =====
+# Barcode images made while testing stay on your laptop.
+# Put images you want to share in the samples/ folder.
+*.png
+*.bmp
+!samples/*.png
+!samples/*.bmp
 
-# debug information files
-*.dwo
-
-# test output & cache
-Testing/
-.cache/
+# ===== Operating system junk =====
+.DS_Store
+Thumbs.db
+desktop.ini
