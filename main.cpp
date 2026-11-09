@@ -1,13 +1,37 @@
-
 #include <iostream>
+#include <fstream>
 #include <string>
-
+#include <cctype> 
+// build\Release\store_app.exe
 #include "barcode/encoder.h"
 #include "barcode/drawer.h"
 #include "barcode/reader.h"
 #include "barcode/decoder.h"
 
 using namespace std;
+
+bool fileExists(const string& filename)
+{
+    ifstream file(filename);
+    return file.good();
+}
+
+bool isValidFilename(const string& filename)
+{
+    if (filename.size() < 5)
+    {
+        return false;
+    }
+    string name = filename;   
+    for (int i = 0; i < name.size(); i++)
+    {
+        name[i] = tolower(name[i]);
+    }
+    string last4 = name.substr(name.size() - 4);
+    string last5 = name.substr(name.size() - 5);
+
+    return last4 == ".png" || last4 == ".jpg" || last4 == ".bmp" || last5 == ".jpeg";
+}
 
 int main()
 {
@@ -23,9 +47,12 @@ int main()
 
         if (!(cin >> choice))
         {
-            cout << "Invalid choice!" << endl;
-            return 0;
+            cin.clear();           
+            cin.ignore(1000, '\n');
+            cout << "Invalid choice! Please select 1, 2, or 3." << endl;
+            continue;
         }
+        cin.ignore(1000, '\n');
 
         // OPTION 1: GENERATE BARCODE
         if (choice == 1)
@@ -38,17 +65,21 @@ int main()
 
             if (!isvalidInput(number))
             {
-                cout << "Invalid number! Enter exactly 6 digits.";
-                cout << " First digit cannot be zero." << endl;
+                cout << "Invalid number! Enter exactly 6 digits. First digit cannot be zero." << endl;
                 continue;
             }
 
-            cout << "Enter image filename (example: barcode1.png): ";
+            if (fileExists(filename))
+            {
+                cout << "Error: a file with this name already exists. Choose another name." << endl;
+                continue; 
+            }
+
+            cout << "Enter barcode image filename (example: barcode1.png): ";
             cin >> filename;
 
             string bits = Encode(number);
 
-            cout << "\nGenerated barcode bits:" << endl;
             printConsole(bits);
 
             if (createBarcodeImage(bits, filename))
@@ -57,6 +88,10 @@ int main()
                 cout << "Number: " << number << endl;
                 cout << "Image: " << filename << endl;
             }
+            else
+            {
+                cout << "\nError: could not save the image." << endl;
+            }
         }
 
         // OPTION 2: SCAN AND DECODE BARCODE
@@ -64,8 +99,20 @@ int main()
         {
             string filename;
 
-            cout << "\nEnter barcode image filename: ";
+            cout << "\nEnter barcode image filename (example: barcode1.png): ";
             cin >> filename;
+
+            if(!isValidFilename(filename))
+            {
+                cout << "Invalid filename! Must end with .png, .jpg, .jpeg, or .bmp" << endl;
+                continue;
+            }
+
+            if (!fileExists(filename))
+            {
+                cout << "File not found!" << endl;
+                continue;
+            }
 
             // Read image using OpenCV
             string row = readBarcodeRow(filename);
@@ -75,8 +122,6 @@ int main()
                 cout << "Could not read barcode image!" << endl;
                 continue;
             }
-
-            cout << "Read row size: " << row.size() << endl;
 
             // Decode barcode
             string decodedNumber;
