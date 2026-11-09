@@ -47,33 +47,49 @@ void printConsole(const string& bits)
 
 bool createBarcodeImage(const string& bits, const string& filename)
 {
+    if (!isValidBitString(bits))
+    {
+        cerr << "Error: Invalid barcode bit string!" << endl;
+        return false;
+    }
+
     int width = (bits.size() + 2 * Quiet_Zone) * Bar_Width;
-
     Mat image(Image_Height, width, CV_8UC3, Scalar(255, 255, 255));
-
     for (int i = 0; i < bits.size(); i++)
     {
         if (bits[i] == '1')
         {
             int x = (Quiet_Zone + i) * Bar_Width;
-
-            rectangle(image, Point(x, 0),Point(x + Bar_Width - 1, Image_Height - 1),Scalar(0, 0, 0), FILLED);
+            rectangle(image, Point(x, 0),
+                Point(x + Bar_Width - 1, Image_Height - 1),
+                Scalar(0, 0, 0), FILLED);
         }
     }
-
-    if (imwrite(filename, image))
+    try
     {
-        cout << "Saved " << filename << " successfully" << endl;
+        if (!imwrite(filename, image))
+        {
+            cerr << "Error: Could not save " << filename << endl;
+            return false;
+        }
+    }
+    catch (const cv::Exception& e)
+    {
+        cerr << "OpenCV error: " << e.what() << endl;
+        return false;
+    }
 
+    cout << "Saved " << filename << " successfully" << endl;
+    try
+    {
         imshow("Generated Barcode", image);
         waitKey(0);
         destroyAllWindows();
-
-        return true;
     }
-    else
+    catch (const cv::Exception& e)
     {
-        cerr << "Error: Could not save " << filename << endl;
-        return false;
+        cerr << "Could not display image: " << e.what() << endl;
     }
+
+    return true;
 }
