@@ -45,17 +45,15 @@ compile_commands.json
 *.log
 
 # ===== Generated barcode images =====
-# Barcode images made while testing stay on your laptop.
-# Put images you want to share in the samples/ folder.
 *.png
 *.bmp
+*.jpg
+*.jpeg
 !samples/*.png
 !samples/*.bmp
+!samples/*.jpg
+!samples/*.jpeg
 
 # ===== Operating system junk =====
 .DS_Store
 Thumbs.db
-desktop.ini
-/t.jpg
-/test.jpg
-/.gitignore
