@@ -2,7 +2,7 @@
 #include <fstream>
 #include <string>
 #include <cctype> 
-// build\Release\store_app.exe
+
 #include "barcode/encoder.h"
 #include "barcode/drawer.h"
 #include "barcode/reader.h"
@@ -18,19 +18,30 @@ bool fileExists(const string& filename)
 
 bool isValidFilename(const string& filename)
 {
-    if (filename.size() < 5)
-    {
-        return false;
-    }
-    string name = filename;   
+     string name = filename;   
     for (int i = 0; i < name.size(); i++)
     {
         name[i] = tolower(name[i]);
     }
-    string last4 = name.substr(name.size() - 4);
-    string last5 = name.substr(name.size() - 5);
-
-    return last4 == ".png" || last4 == ".jpg" || last4 == ".bmp" || last5 == ".jpeg";
+    // 4-letter extensions
+    if (name.size() > 4)
+    {
+        string last4 = name.substr(name.size() - 4);
+        if (last4 == ".png" || last4 == ".jpg" || last4 == ".bmp")
+        {
+            return true;
+        }
+    }
+    // 5-letter extensions
+    if (name.size() > 5)
+    {
+        string last5 = name.substr(name.size() - 5);
+        if (last5 == ".jpeg")
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 int main()
