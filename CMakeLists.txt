@@ -23,7 +23,6 @@ add_executable(store_app
     barcode/drawer.cpp
     barcode/reader.cpp
     barcode/decoder.cpp
-    barcode/camera.cpp
 )
 
 target_link_libraries(store_app ${OpenCV_LIBS})
