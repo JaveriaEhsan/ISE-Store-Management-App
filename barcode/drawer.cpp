@@ -80,16 +80,10 @@ bool createBarcodeImage(const string& bits, const string& filename)
     }
 
     cout << "Saved " << filename << " successfully" << endl;
-    try
-    {
-        imshow("Generated Barcode", image);
-        waitKey(0);
-        destroyAllWindows();
-    }
-    catch (const cv::Exception& e)
-    {
-        cerr << "Could not display image: " << e.what() << endl;
-    }
-
+    imshow("Generated Barcode", image);
+    waitKey(0);
+    destroyAllWindows();
     return true;
+
+    
 }
