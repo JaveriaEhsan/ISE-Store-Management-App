@@ -7,7 +7,6 @@
 #include "barcode/drawer.h"
 #include "barcode/reader.h"
 #include "barcode/decoder.h"
-#include "barcode/camera.h"
 
 using namespace std;
 
@@ -43,20 +42,20 @@ int main()
         cout << "\n========== BARCODE SYSTEM ==========" << endl;
         cout << "1. Generate Barcode Image" << endl;
         cout << "2. Scan and Decode Barcode Image" << endl;
-        cout << "3. Scan Barcode with Camera" << endl;
-        cout << "4. Exit" << endl;
+        cout << "3. Exit" << endl;
         cout << "Enter your choice: ";
 
         if (!(cin >> choice))
         {
             cin.clear();           
             cin.ignore(1000, '\n');
-            cout << "Invalid choice! Please select 1-4." << endl;
+            cout << "Invalid choice! Please select 1, 2, or 3." << endl;
             continue;
         }
         cin.ignore(1000, '\n');
 
-        // OPTION 1: GENERATE BARCODE
+        
+       // OPTION 1: GENERATE BARCODE
         if (choice == 1)
         {
             string number;
@@ -71,14 +70,20 @@ int main()
                 continue;
             }
 
+            cout << "Enter barcode image filename (example: barcode1.png): ";
+            cin >> filename;
+
+            if (!isValidFilename(filename))
+            {
+                cout << "Invalid filename! Must end with .png, .jpg, .jpeg, or .bmp" << endl;
+                continue;
+            }
+
             if (fileExists(filename))
             {
                 cout << "Error: a file with this name already exists. Choose another name." << endl;
-                continue; 
+                continue;
             }
-
-            cout << "Enter barcode image filename (example: barcode1.png): ";
-            cin >> filename;
 
             string bits = Encode(number);
 
@@ -141,41 +146,8 @@ int main()
             }
         }
 
+        // OPTION 3: EXIT
         else if (choice == 3)
-        {
-            string cameraFile = "camera_capture.png";
-
-            if (!captureFromCamera(cameraFile))
-            {
-                cout << "No image captured." << endl;
-                continue;
-            }
-
-            string row = readBarcodeRow(cameraFile);
-            // remove(cameraFile.c_str()); // delete the temporary file
-
-            if (row.empty())
-            {
-                cout << "Could not read barcode from the camera image!" << endl;
-                continue;
-            }
-
-            string decodedNumber;
-            string error;
-
-            if (decodeRow(row, decodedNumber, error))
-            {
-                cout << "\n========== SCAN RESULT ==========" << endl;
-                cout << "Decoded number: " << decodedNumber << endl;
-            }
-            else
-            {
-                cout << "\nDecoding failed: " << error << endl;
-            }
-        }
-
-        // OPTION 4: EXIT
-        else if (choice == 4)
         {
             cout << "Exiting Barcode System..." << endl;
             break;
