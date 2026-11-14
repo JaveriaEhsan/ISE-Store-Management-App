@@ -72,7 +72,6 @@ int main()
         if (choice == 1)
         {
             string number;
-            string filename;
 
             cout << "\nEnter a 6-digit number: ";
             cin >> number;
@@ -83,56 +82,65 @@ int main()
                 continue;
             }
 
-            cout << "Enter barcode image filename (example: barcode1.png): ";
-            cin >> filename;
+            string filename = makeBarcodeFilename(number);
+            string bits = Encode(number);
 
+            printConsole(bits);
+
+            bool alreadyExists;
+
+            if (createBarcodeImage(bits, filename, alreadyExists))
+            {
+                cout << "\nBarcode generated successfully!" << endl;
+                cout << "Number: " << number << endl;
+                cout << "Image: " << filename << endl;
+            }
+            else if (alreadyExists)
+            {
+                cout << "\nThis barcode is already saved for " << number << "." << endl;
+                cout << "Image: " << filename << " (not saved again)" << endl;
+            }
+            else
+            {
+                cout << "\nError: could not save the image. Check that the barcodes folder exists." << endl;
+            }
+        }
+        // OPTION 2: SCAN AND DECODE BARCODE
+        else if (choice == 2)
+        {
+            string filename;
+
+            cout << "\nEnter barcode image filename (example: barcode_123456.png): ";
+            cin >> filename;
+            
+
+            // If the user typed no extension, add .png (all our barcodes are saved as .png)
+            size_t slash = filename.find_last_of("/\\");
+            string namePart = (slash == string::npos) ? filename : filename.substr(slash + 1);
+
+            if (namePart.find('.') == string::npos)
+            {
+                filename += ".png";
+            }
             if (!isValidFilename(filename))
             {
                 cout << "Invalid filename! Must end with .png, .jpg, .jpeg, or .bmp" << endl;
                 continue;
             }
 
-            if (fileExists(filename))
+            // If only a name was typed (no folder), look inside samples
+            if (filename.find('/') == string::npos && filename.find('\\') == string::npos)
             {
-                cout << "Error: a file with this name already exists. Choose another name." << endl;
-                continue;
-            }
-
-            string bits = Encode(number);
-
-            printConsole(bits);
-
-            if (createBarcodeImage(bits, filename))
-            {
-                cout << "\nBarcode generated successfully!" << endl;
-                cout << "Number: " << number << endl;
-                cout << "Image: " << filename << endl;
-            }
-            else
-            {
-                cout << "\nError: could not save the image." << endl;
-            }
-        }
-
-        // OPTION 2: SCAN AND DECODE BARCODE
-        else if (choice == 2)
-        {
-            string filename;
-
-            cout << "\nEnter barcode image filename (example: barcode1.png): ";
-            cin >> filename;
-
-            if(!isValidFilename(filename))
-            {
-                cout << "Invalid filename! Must end with .png, .jpg, .jpeg, or .bmp" << endl;
-                continue;
+                filename = "samples/" + filename;
             }
 
             if (!fileExists(filename))
             {
-                cout << "File not found!" << endl;
+                cout << "File not found: " << filename << endl;
                 continue;
             }
+
+           
 
             // Read image using OpenCV
             string row = readBarcodeRow(filename);

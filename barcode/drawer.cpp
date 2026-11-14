@@ -1,6 +1,7 @@
 #include "drawer.h"
 #include "../shared.h"
 #include <iostream>
+#include <fstream>
 #include <opencv2/opencv.hpp>
 using namespace std;
 using namespace cv;
@@ -44,12 +45,25 @@ void printConsole(const string& bits)
     }
 }
 
-
-bool createBarcodeImage(const string& bits, const string& filename)
+string makeBarcodeFilename(const string& number)
 {
+    return "samples/barcode_" + number + ".png";
+}
+bool createBarcodeImage(const string& bits, const string& filename, bool& alreadyExists)
+{
+    alreadyExists = false;
+
     if (!isValidBitString(bits))
     {
         cerr << "Error: Invalid barcode bit string!" << endl;
+        return false;
+    }
+
+    // If this barcode is already saved, do not draw or save it again
+    ifstream existing(filename);
+    if (existing.good())
+    {
+        alreadyExists = true;
         return false;
     }
 
@@ -80,8 +94,6 @@ bool createBarcodeImage(const string& bits, const string& filename)
     }
 
     cout << "Saved " << filename << " successfully" << endl;
-
-   
     try
     {
         imshow("Generated Barcode", image);
@@ -94,6 +106,4 @@ bool createBarcodeImage(const string& bits, const string& filename)
     }
 
     return true;
-
-    
 }
