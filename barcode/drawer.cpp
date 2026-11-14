@@ -2,6 +2,7 @@
 #include "../shared.h"
 #include <iostream>
 #include <fstream>
+#include <filesystem>
 #include <opencv2/opencv.hpp>
 using namespace std;
 using namespace cv;
@@ -47,7 +48,7 @@ void printConsole(const string& bits)
 
 string makeBarcodeFilename(const string& number)
 {
-    return "samples/barcode_" + number + ".png";
+    return "barcodes/" + number + ".png";
 }
 bool createBarcodeImage(const string& bits, const string& filename, bool& alreadyExists)
 {
@@ -79,6 +80,22 @@ bool createBarcodeImage(const string& bits, const string& filename, bool& alread
                 Scalar(0, 0, 0), FILLED);
         }
     }
+    // Create barcodes folder if it doesn't exist
+    try
+    {
+        std::filesystem::path p(filename);
+        if (p.has_parent_path())
+        {
+            std::filesystem::create_directories(p.parent_path());
+        }
+    }
+    catch (const std::exception &e)
+    {
+        cerr << "Could not create folder: " << e.what() << endl;
+        return false;
+    }
+
+    // Save the image to the specified filename
     try
     {
         if (!imwrite(filename, image))
