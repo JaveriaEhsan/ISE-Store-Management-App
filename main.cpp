@@ -25,7 +25,11 @@ int main()
         cout << "\n========== BARCODE SYSTEM ==========" << endl;
         cout << "1. Generate Barcode Image" << endl;
         cout << "2. Scan and Decode Barcode Image" << endl;
+<<<<<<< HEAD
         cout << "3. Scan Barcode from Camera" << endl;
+=======
+        cout << "3. Camera Scan Test" << endl;
+>>>>>>> e19479b (Keep camera scanning as Option 3)
         cout << "4. Exit" << endl;
         cout << "Enter your choice: ";
 
@@ -135,6 +139,7 @@ int main()
             }
         }
 
+<<<<<<< HEAD
         //  OPTION 3: CAMERA SCAN TEST
         else if (choice == 3)
         {
@@ -149,6 +154,23 @@ int main()
                 cout << "Barcode could not be decoded." << endl;
             }
         }
+=======
+        
+      //  OPTION 4: CAMERA SCAN TEST
+else if (choice == 3)
+{
+    string number;
+
+    if (captureFromCamera("camera.png", number))
+    {
+        cout << "Successfully decoded: " << number << endl;
+    }
+    else
+    {
+        cout << "Barcode could not be decoded." << endl;
+    }
+}
+>>>>>>> e19479b (Keep camera scanning as Option 3)
         // OPTION 4: EXIT
         else if (choice == 4)
         {
