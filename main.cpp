@@ -1,7 +1,6 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <cctype> 
 
 #include "barcode/encoder.h"
 #include "barcode/drawer.h"
@@ -27,8 +26,7 @@ int main()
         cout << "1. Generate Barcode Image" << endl;
         cout << "2. Scan and Decode Barcode Image" << endl;
         cout << "3. Scan Barcode from Camera" << endl;
-        cout << "4. Camera Scan Test" << endl;
-        cout << "5. Exit" << endl;
+        cout << "4. Exit" << endl;
         cout << "Enter your choice: ";
 
         if (!(cin >> choice))
@@ -137,54 +135,20 @@ int main()
             }
         }
 
-        // // OPTION 3: SCAN BARCODE FROM CAMERA
-        // else if (choice == 3)
-        // {
-        //     string cameraFile = "camera_capture.png";
+        //  OPTION 3: CAMERA SCAN TEST
+        else if (choice == 3)
+        {
+            string number;
 
-        //     if (!captureFromCamera(cameraFile))
-        //     {
-        //         cout << "No image captured." << endl;
-        //         continue;
-        //     }
-
-        //     string row = readBarcodeRow(cameraFile);
-        //     // remove(cameraFile.c_str()); // delete the temporary file
-
-        //     if (row.empty())
-        //     {
-        //         cout << "Could not read barcode from the camera image!" << endl;
-        //         continue;
-        //     }
-
-        //     string decodedNumber;
-        //     string error;
-
-        //     if (decodeRow(row, decodedNumber, error))
-        //     {
-        //         cout << "\n========== SCAN RESULT ==========" << endl;
-        //         cout << "Decoded number: " << decodedNumber << endl;
-        //     }
-        //     else
-        //     {
-        //         cout << "\nDecoding failed: " << error << endl;
-        //     }
-        // }
-
-      //  OPTION 4: CAMERA SCAN TEST
-else if (choice == 3)
-{
-    string number;
-
-    if (captureFromCamera("camera.png", number))
-    {
-        cout << "Successfully decoded: " << number << endl;
-    }
-    else
-    {
-        cout << "Barcode could not be decoded." << endl;
-    }
-}
+            if (captureFromCamera("camera.png", number))
+            {
+                cout << "Successfully decoded: " << number << endl;
+            }
+            else
+            {
+                cout << "Barcode could not be decoded." << endl;
+            }
+        }
         // OPTION 4: EXIT
         else if (choice == 4)
         {
