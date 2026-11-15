@@ -1,7 +1,7 @@
 #include "TextFormat.h"   
 
 #include <iomanip>   // set precision
-#include <sstream>   // number to text
+#include <sstream>   
 
 using namespace std;
 
