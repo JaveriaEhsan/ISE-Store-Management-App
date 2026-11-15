@@ -6,7 +6,7 @@
 class BillRepository
 {
 public:
-    bool save(const Bill& bill);   // writes one line to file
+    bool save(const Bill& bill);   // writes one row per product on the bill
 };
 
 #endif

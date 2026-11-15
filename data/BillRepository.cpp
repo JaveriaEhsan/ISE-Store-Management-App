@@ -2,30 +2,38 @@
 #include "TextFormat.h"       // fixText and toText
 
 #include <fstream>   
-
 using namespace std;
 
+// Writes one line to Bill.txt for each product on the bill
 bool BillRepository::save(const Bill& bill)
 {
-    ofstream file("data/Bill.txt", ios::app);   // app = add at end
-    if (!file.is_open())                        
+    if (bill.lines.empty())                 
     {
         return false;
     }
 
-    file << bill.billId << " "                    
-         << fixText(bill.customerName) << " "     
-         << bill.orderId << " "                   
-         << bill.acronym << " "                   
-         << toText(bill.unitPrice) << " "         
-         << toText(bill.discountPerUnit) << " "   
-         << toText(bill.quantity) << " "         
-         << toText(bill.totalWithoutTax) << " "   
-         << toText(bill.totalTax) << " "          
-         << toText(bill.totalDiscount) << " "     
-         << toText(bill.totalPayable) << " "      
-         << bill.status                           
-         << "#" << "\n";                          // end of line
+    ofstream file("Bill.txt", ios::app);   
+    if (!file.is_open())                     // file did not open
+    {
+        return false;
+    }
 
-    return true;
+    for (const BillLine& line : bill.lines)  // one file line per product
+    {
+        file << bill.billId << " "                    
+             << fixText(bill.customerName) << " "
+             << bill.orderId << " "
+             << line.acronym << " "                   
+             << toText(line.unitPrice) << " "
+             << toText(line.discountPerUnit) << " "
+             << toText(line.quantity) << " "
+             << toText(bill.totalWithoutTax) << " "   
+             << toText(bill.totalTax) << " "
+             << toText(bill.totalDiscount) << " "
+             << toText(bill.totalPayable) << " "
+             << bill.status
+             << "#" << "\n";
+    }
+
+    return file.good();   
 }
