@@ -56,7 +56,7 @@ static int lastSerial(const string& path, int digits)
 // Makes the next order id: last 6-digit serial + 1, then today's day (8 digits)
 string IdGenerator::nextOrderId()
 {
-    int serial = lastSerial("data/Order.txt", 6) + 1;   // last serial + 1
+    int serial = lastSerial("Order.txt", 6) + 1;   // last serial + 1
 
     auto now = time(nullptr);                            // current time
     tm* local = localtime(&now);                         // split into day, month...
