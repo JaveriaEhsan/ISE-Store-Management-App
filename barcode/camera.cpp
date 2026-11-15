@@ -1,5 +1,5 @@
 #include "camera.h"
-#include "decoder.h"
+#include "noisydecoder.h"
 #include <opencv2/opencv.hpp>
 #include <iostream>
 #include <vector>
@@ -75,7 +75,7 @@ static bool decodeRegion(const Mat& region,string& decodedNumber){
         }
         string candidate;
         string error;
-        if (decodeRow(row, candidate, error)){
+        if (decodeNoisyRow(row, candidate, error)){
             decodedNumber = candidate;
             return true;
         }
