@@ -25,60 +25,120 @@ int main()
         cout << "\n========== BARCODE SYSTEM ==========" << endl;
         cout << "1. Generate Barcode Image" << endl;
         cout << "2. Scan and Decode Barcode Image" << endl;
-<<<<<<< HEAD
         cout << "3. Scan Barcode from Camera" << endl;
-=======
-        cout << "3. Camera Scan Test" << endl;
->>>>>>> e19479b (Keep camera scanning as Option 3)
         cout << "4. Exit" << endl;
         cout << "Enter your choice: ";
 
         if (!(cin >> choice))
         {
-            cin.clear();           
+            cin.clear();
             cin.ignore(1000, '\n');
             cout << "Invalid choice! Please select 1-4." << endl;
             continue;
         }
         cin.ignore(1000, '\n');
-
-        
-       // OPTION 1: GENERATE BARCODE
+// OPTION 1: GENERATE BARCODE
         if (choice == 1)
-        {
-            string number;
+             {
+    string number;
 
-            cout << "\nEnter a 6-digit number: ";
-            cin >> number;
+    cout << "\nEnter a 6-digit number: ";
+    cin >> number;
 
-            if (!isvalidInput(number))
-            {
-                cout << "Invalid number! Enter exactly 6 digits. First digit cannot be zero." << endl;
-                continue;
-            }
+    if (!isvalidInput(number))
+    {
+        cout << "Invalid number! Enter exactly 6 digits. First digit cannot be zero." << endl;
+        continue;
+    }
 
-            string filename = makeBarcodeFilename(number);
-            string bits = Encode(number);
+    string filename = makeBarcodeFilename(number);
+    string bits = Encode(number);
 
-            printConsole(bits);
+    // Build barcode image
+    cv::Mat barcodeImage = buildBarcodeImage(bits);
 
-            bool alreadyExists = false;
+    if (barcodeImage.empty())
+    {
+        cout << "\nError: Invalid barcode data!" << endl;
+        continue;
+    }
 
-            if (createBarcodeImage(bits, filename, alreadyExists))
-            {
-                cout << "\nBarcode generated successfully!" << endl;
-                cout << "Number: " << number << endl;
-                cout << "Image: " << filename << endl;
-            }
-            else if (alreadyExists)
-            {
-                cout << "\nA barcode for " << number << " already exists: " << filename << endl;
-            }
-            else
-            {
-                cout << "\nError: could not save the image" << endl;
-            }
-        }
+    // Prevent overwriting an existing barcode
+    if (fileExists(filename))
+    {
+        cout << "\nA barcode for " << number
+             << " already exists: " << filename << endl;
+        continue;
+    }
+
+    // Save barcode image
+    if (saveBarcodeImage(barcodeImage, filename))
+    {
+        cout << "\nBarcode generated successfully!" << endl;
+        cout << "Number: " << number << endl;
+        cout << "Image: " << filename << endl;
+    }
+    else
+    {
+        cout << "\nError: could not save the image" << endl;
+    }
+}
+
+        // if (choice == 1)
+        // {
+        //     string number;
+
+        //     cout << "\nEnter a 6-digit number: ";
+        //     cin >> number;
+
+        //     if (!isvalidInput(number))
+        //     {
+        //         cout << "Invalid number! Enter exactly 6 digits. First digit cannot be zero." << endl;
+        //         continue;
+        //     }
+        //     string filename = makeBarcodeFilename(number);
+        //     string bits = Encode(number);
+
+        //     printConsole(bits);
+
+        //     bool alreadyExists = false;
+
+        //     if (createBarcodeImage(bits, filename, alreadyExists))
+        //     {
+        //         cout << "\nBarcode generated successfully!" << endl;
+        //         cout << "Number: " << number << endl;
+        //         cout << "Image: " << filename << endl;
+        //     }
+        //     else if (alreadyExists)
+        //     {
+        //         cout << "\nA barcode for " << number << " already exists: " << filename << endl;
+        //     }
+        //     else
+        //     {
+        //         cout << "\nError: could not save the image" << endl;
+        //     }
+        //     // string filename = makeBarcodeFilename(number);
+        //     // string bits = Encode(number);
+
+        //     // printConsole(bits);
+
+        //     // bool alreadyExists = false;
+
+        //     // if (createBarcodeImage(bits, filename, alreadyExists))
+        //     // {
+        //     //     cout << "\nBarcode generated successfully!" << endl;
+        //     //     cout << "Number: " << number << endl;
+        //     //     cout << "Image: " << filename << endl;
+        //     // }
+        //     // else if (alreadyExists)
+        //     // {
+        //     //     cout << "\nA barcode for " << number << " already exists: " << filename << endl;
+        //     // }
+        //     // else
+        //     // {
+        //     //     cout << "\nError: could not save the image" << endl;
+        //     // }
+        // }
         // OPTION 2: SCAN AND DECODE BARCODE
         else if (choice == 2)
         {
@@ -139,24 +199,7 @@ int main()
             }
         }
 
-<<<<<<< HEAD
-        //  OPTION 3: CAMERA SCAN TEST
-        else if (choice == 3)
-        {
-            string number;
-
-            if (captureFromCamera("camera.png", number))
-            {
-                cout << "Successfully decoded: " << number << endl;
-            }
-            else
-            {
-                cout << "Barcode could not be decoded." << endl;
-            }
-        }
-=======
-        
-      //  OPTION 4: CAMERA SCAN TEST
+// OPTION 3: CAMERA SCAN
 else if (choice == 3)
 {
     string number;
@@ -170,7 +213,6 @@ else if (choice == 3)
         cout << "Barcode could not be decoded." << endl;
     }
 }
->>>>>>> e19479b (Keep camera scanning as Option 3)
         // OPTION 4: EXIT
         else if (choice == 4)
         {
