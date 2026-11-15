@@ -1,126 +1,75 @@
+
 #include "drawer.h"
 #include "../shared.h"
-#include <iostream>
-#include <fstream>
-#include <filesystem>
+
 #include <opencv2/opencv.hpp>
+#include <filesystem>
+
 using namespace std;
 using namespace cv;
 
-bool isValidBitString(const string& bits)
+static bool isValidBitString(const string& bits)
 {
-    if (bits.size() != 48)
-    {
+    if (bits.size() != Total_Bits)
         return false;
-    }
 
-    for (int i = 0; i < bits.size(); i++)
+    for (char bit : bits)
     {
-        if (bits[i] != '0' && bits[i] != '1')
-        {
+        if (bit != '0' && bit != '1')
             return false;
-        }
     }
 
     return true;
 }
 
-void printConsole(const string& bits)
+Mat buildBarcodeImage(const string& bits)
 {
-    string bar = "\xDB";
+    if (!isValidBitString(bits))
+        return Mat();
 
-    for (int row = 0; row < 5; row++)
+    int width = (bits.size() + 2 * Quiet_Zone) * Bar_Width;
+
+    Mat image(Image_Height, width, CV_8UC3,
+              Scalar(255, 255, 255));
+
+    for (int i = 0; i < bits.size(); i++)
     {
-        for (int i = 0; i < bits.size(); i++)
+        if (bits[i] == '1')
         {
-            if (bits[i] == '1')
-            {
-                cout << bar;
-            }
-            else
-            {
-                cout << "  ";
-            }
+            int x = (Quiet_Zone + i) * Bar_Width;
+
+            rectangle(image,
+                      Point(x, 0),
+                      Point(x + Bar_Width - 1, Image_Height - 1),
+                      Scalar(0, 0, 0),
+                      FILLED);
         }
-        cout << endl;
+    }
+
+    return image;
+}
+
+bool saveBarcodeImage(const Mat& image, const string& filename)
+{
+    if (image.empty())
+        return false;
+
+    try
+    {
+        filesystem::path path(filename);
+
+        if (path.has_parent_path())
+            filesystem::create_directories(path.parent_path());
+
+        return imwrite(filename, image);
+    }
+    catch (const exception&)
+    {
+        return false;
     }
 }
 
 string makeBarcodeFilename(const string& number)
 {
     return "barcodes/" + number + ".png";
-}
-bool createBarcodeImage(const string& bits, const string& filename, bool& alreadyExists)
-{
-    alreadyExists = false;
-
-    if (!isValidBitString(bits))
-    {
-        cerr << "Error: Invalid barcode bit string!" << endl;
-        return false;
-    }
-
-    // If this barcode is already saved, do not draw or save it again
-    ifstream existing(filename);
-    if (existing.good())
-    {
-        alreadyExists = true;
-        return false;
-    }
-
-    int width = (bits.size() + 2 * Quiet_Zone) * Bar_Width;
-    Mat image(Image_Height, width, CV_8UC3, Scalar(255, 255, 255));
-    for (int i = 0; i < bits.size(); i++)
-    {
-        if (bits[i] == '1')
-        {
-            int x = (Quiet_Zone + i) * Bar_Width;
-            rectangle(image, Point(x, 0),
-                Point(x + Bar_Width - 1, Image_Height - 1),
-                Scalar(0, 0, 0), FILLED);
-        }
-    }
-    // Create barcodes folder if it doesn't exist
-    try
-    {
-        std::filesystem::path p(filename);
-        if (p.has_parent_path())
-        {
-            std::filesystem::create_directories(p.parent_path());
-        }
-    }
-    catch (const std::exception &e)
-    {
-        cerr << "Could not create folder: " << e.what() << endl;
-        return false;
-    }
-
-    // Save the image to the specified filename
-    try
-    {
-        if (!imwrite(filename, image))
-        {
-            cerr << "Error: Could not save " << filename << endl;
-            return false;
-        }
-    }
-    catch (const cv::Exception& e)
-    {
-        cerr << "OpenCV error: " << e.what() << endl;
-        return false;
-    }
-
-    cout << "Saved " << filename << " successfully" << endl;
-    try
-    {
-        imshow("Generated Barcode", image);
-        waitKey(0);
-        destroyAllWindows();
-    }
-    catch (const cv::Exception& e)
-    {
-        cerr << "Could not display image: " << e.what() << endl;
-    }
-
-    return true;
 }

@@ -1,14 +1,19 @@
+
 #ifndef DRAWER_H
 #define DRAWER_H
 
 #include <string>
+#include <opencv2/core.hpp>
+
 using namespace std;
 
-// Owner: Member 2
-// Prints the barcode on the console
-void printConsole(const string& bits);
+// Build barcode image and return it as cv::Mat
+cv::Mat buildBarcodeImage(const string& bits);
 
-// Draws the barcode, shows it on screen and saves it as filename. Returns true if saved.
+// Save an already-built barcode image
+bool saveBarcodeImage(const cv::Mat& image, const string& filename);
+
+// Generate barcode filename
 string makeBarcodeFilename(const string& number);
-bool createBarcodeImage(const string& bits, const string& filename, bool& alreadyExists);
+
 #endif
