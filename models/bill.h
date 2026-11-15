@@ -4,16 +4,22 @@
 #include <string>
 using namespace std;
 
-// One row of Bill.txt
+// One product on the bill (becomes one row of Bill.txt)
+struct BillLine
+{
+    string acronym;
+    double unitPrice = 0;         // without tax
+    double discountPerUnit = 0;
+    double quantity = 0;
+};
+
+// One whole bill for one customer
 struct Bill
 {
     string billId;               // 9 digits
     string customerName;
     string orderId;              // the order id from Order.txt
-    string acronym;              // product acronym
-    double unitPrice = 0;        // without tax
-    double discountPerUnit = 0;
-    double quantity = 0;
+    std::vector<BillLine> lines; // all products on this bill
     double totalWithoutTax = 0;
     double totalTax = 0;
     double totalDiscount = 0;
