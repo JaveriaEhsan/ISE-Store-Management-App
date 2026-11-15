@@ -55,3 +55,8 @@ barcodes/
 # ===== Operating system junk =====
 .DS_Store
 Thumbs.db
+
+# ===== Generated files =====
+Order.txt
+OrderDetail.txt
+Bill.txt
