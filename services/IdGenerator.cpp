@@ -1,6 +1,6 @@
 #include "IdGenerator.h"   
-
-#include <ctime>     // today's date
+#include "../config.h"  
+#include <ctime>     
 #include <fstream>   
 #include <string>
 
@@ -43,11 +43,11 @@ static int lastSerial(const string& path, int digits)
         int value = stoi(line.substr(0, digits));
         if (value < 0)
         {
-            return 0;       // negative is not a valid serial
+            return 0;       
         }
         return value;
     }
-    catch (...)             // not a number, do not crash
+    catch (...)             
     {
         return 0;
     }
@@ -56,7 +56,7 @@ static int lastSerial(const string& path, int digits)
 // Makes the next order id: last 6-digit serial + 1, then today's day (8 digits)
 string IdGenerator::nextOrderId()
 {
-    int serial = lastSerial("Order.txt", 6) + 1;   // last serial + 1
+    int serial = lastSerial(ORDER_FILE, 6) + 1;   // last serial + 1
 
     auto now = time(nullptr);                            // current time
     tm* local = localtime(&now);                         // split into day, month...
@@ -67,7 +67,7 @@ string IdGenerator::nextOrderId()
 // Makes the next bill id: last 9-digit bill id + 1
 string IdGenerator::nextBillId()
 {
-    int serial = lastSerial("data/Bill.txt", 9) + 1;    // last bill id + 1
+    int serial = lastSerial(BILL_FILE, 9)+ 1;    // last bill id + 1
     return pad(to_string(serial), 9);
 }
 
