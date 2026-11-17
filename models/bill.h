@@ -8,8 +8,10 @@ using namespace std;
 struct BillLine
 {
     string acronym;
+    string barcode;
     double unitPrice = 0;         // without tax
     double discountPerUnit = 0;
+    double taxPerUnit = 0;
     double quantity = 0;
 };
 

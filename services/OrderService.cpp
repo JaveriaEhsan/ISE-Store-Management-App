@@ -202,8 +202,10 @@ bool OrderService::checkout(const CheckoutInfo& info,
 
         BillLine line;
         line.acronym = cart[i].acronym;
+        line.barcode = cart[i].barcode;
         line.unitPrice = cart[i].unitPrice;
         line.discountPerUnit = cart[i].discountPerUnit;
+        line.taxPerUnit = cart[i].taxPerUnit;
         line.quantity = cart[i].quantity;
         r.bill.lines.push_back(line);
     }
