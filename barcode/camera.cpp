@@ -1,6 +1,7 @@
 #include "camera.h"
 #include "decoder.h"
 #include <opencv2/opencv.hpp>
+#include <opencv2/geometry/2d.hpp>
 #include <iostream>
 #include <vector>
 #include <algorithm>

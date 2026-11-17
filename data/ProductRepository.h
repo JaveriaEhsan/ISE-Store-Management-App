@@ -25,7 +25,7 @@ public:
     ProductRepository(const string& filename);
 
     // Reads the whole file into memory. Returns false if the file cannot be opened.
-    bool load();
+    bool load()override;
 
     // How many lines were skipped by load(), and why
     int getSkippedCount() const;

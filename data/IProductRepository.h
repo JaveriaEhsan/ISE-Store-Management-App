@@ -8,7 +8,7 @@ class IProductRepository
 {
 public:
     virtual ~IProductRepository() {}
-
+    virtual bool load() = 0;
     // Finds a product by its barcode. Returns false if not found.
     virtual bool findByBarcode(const string& barcode, Product& result) const = 0;
 
@@ -17,6 +17,8 @@ public:
 
     // Replaces the product (matched by barcode) and saves to the file
     virtual bool update(const Product& product) = 0;
+
+    virtual vector<string> getErrors() const { return vector<string>(); }
 };
 
 #endif
