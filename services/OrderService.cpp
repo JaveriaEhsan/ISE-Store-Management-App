@@ -122,7 +122,7 @@ bool OrderService::checkout(const CheckoutInfo& info,
 {
     error = "";
 
-    // ----- 1. validate -----
+    
     if (cart.empty())
     {
         error = "The order is empty.";
@@ -166,7 +166,7 @@ bool OrderService::checkout(const CheckoutInfo& info,
         found.push_back(p);
     }
 
-    // ----- 2. build the records -----
+    // build the records 
     CheckoutResult r;
     r.totals = calculator.calculate(cart);
 
@@ -208,7 +208,7 @@ bool OrderService::checkout(const CheckoutInfo& info,
         r.bill.lines.push_back(line);
     }
 
-    // ----- 3. save -----
+    //  save 
     if (!orders.save(r.order))
     {
         error = "Could not save the order.";
@@ -228,22 +228,29 @@ bool OrderService::checkout(const CheckoutInfo& info,
         return false;
     }
 
-    // ----- 4. reduce stock (only when the order is paid) -----
+    // the files are saved, so this order is finished 
+    vector<BillItem> sold = cart;
+    result = r;
+    cart.clear();
+
+    //  reduce stock (only when the order is paid)
     if (info.status == STATUS_PAID)
     {
+        string failed = "";
         for (size_t i = 0; i < found.size(); i++)
         {
-            found[i].reduceStock(cart[i].quantity);
+            found[i].reduceStock(sold[i].quantity);
             if (!products.update(found[i]))
             {
-                error = "Order saved, but the stock of " + cart[i].acronym + " could not be updated.";
-                return false;
+                failed += " " + sold[i].acronym;   
             }
+        }
+        if (!failed.empty())
+        {
+            error = "Order saved, but the stock could not be updated for:" + failed;
+            return false;
         }
     }
 
-
-    result = r;
-    cart.clear();
     return true;
 }
