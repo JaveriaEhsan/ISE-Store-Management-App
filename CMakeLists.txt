@@ -17,18 +17,11 @@ endif()
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets)
 
-# Picks up every .cpp in these folders, so nobody edits this file when adding files
-file(GLOB SOURCES CONFIGURE_DEPENDS
-    main.cpp
-    barcode/*.cpp
-    camera/*.cpp
-    models/*.cpp
-    data/*.cpp
-    services/*.cpp
-    gui/*.cpp
-)
+# Every .cpp in the project, except build output and tests
+file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_SOURCE_DIR} CONFIGURE_DEPENDS "*.cpp")
+list(FILTER SOURCES EXCLUDE REGEX "^(build[^/]*|out|tests|\\.vs|cmake-build[^/]*)/")
 
 add_executable(store_app ${SOURCES})
 
