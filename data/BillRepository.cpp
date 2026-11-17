@@ -1,10 +1,10 @@
 #include "BillRepository.h"   
 #include "TextFormat.h"       // fixText and toText
-
+#include "../config.h" 
 #include <fstream>   
 using namespace std;
 
-// Writes one line to Bill.txt for each product on the bill
+// Writes one line to the bill file for each product on the bill
 bool BillRepository::save(const Bill& bill)
 {
     if (bill.lines.empty())                 
@@ -12,8 +12,8 @@ bool BillRepository::save(const Bill& bill)
         return false;
     }
 
-    ofstream file("Bill.txt", ios::app);   
-    if (!file.is_open())                     // file did not open
+    ofstream file(BILL_FILE, ios::app);   
+    if (!file.is_open())                   
     {
         return false;
     }

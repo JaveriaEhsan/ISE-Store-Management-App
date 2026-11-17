@@ -1,13 +1,13 @@
 #include "OrderDetailRepository.h"   
 #include "TextFormat.h"              // toText
-
+#include "../config.h"
 #include <fstream>   
 
 using namespace std;
 
 bool OrderDetailRepository::save(const OrderDetail& detail)
 {
-    ofstream file("OrderDetail.txt", ios::app);   // app = add at end
+    ofstream file(ORDER_DETAIL_FILE, ios::app);   // app = add at end
     if (!file.is_open())                               
     {
         return false;
@@ -17,7 +17,6 @@ bool OrderDetailRepository::save(const OrderDetail& detail)
          << detail.productId << " "       
          << detail.barcode << " "         
          << toText(detail.quantity)      // (2 decimals)
-         << "#" << "\n";                  // end of line
-
+         << "#" << "\n";                  
     return true;
 }

@@ -1,13 +1,13 @@
 #include "OrderRepository.h"
 #include "TextFormat.h" // fixText and toText
-
+#include "../config.h"
 #include <fstream>
 
 using namespace std;
 
 bool OrderRepository::save(const Order &order)
 {
-    ofstream file("Order.txt", ios::app); // app = add at end
+    ofstream file(ORDER_FILE, ios::app); // app = add at end
     if (!file.is_open())
     {
         return false;
