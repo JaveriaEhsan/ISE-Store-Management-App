@@ -22,7 +22,7 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent)
     : QDialog(parent)
 {
     setWindowTitle("Bill");
-    resize(620, 520);
+    resize(900, 520);
 
     const Order& o = result.order;
     const Bill& b = result.bill;
@@ -39,30 +39,35 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent)
     header->addRow("Status:", new QLabel(text(b.status), this));
 
     // ----- lines table -----
-    QTableWidget* table = new QTableWidget((int)b.lines.size(), 5, this);
+       // ----- lines table -----
+    QTableWidget* table = new QTableWidget((int)b.lines.size(), 8, this);
     table->setHorizontalHeaderLabels(
-        { "Product", "Unit price", "Discount", "Quantity", "Line total" });
+        { "ID", "Product", "Barcode", "Unit price", "Tax/unit", "Discount", "Quantity", "Total price" });
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table->setSelectionMode(QAbstractItemView::NoSelection);
     table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-
+    table->verticalHeader()->setVisible(false);
     BillCalculator calculator;
     for (size_t i = 0; i < b.lines.size(); i++)
     {
         const BillLine& line = b.lines[i];
 
-        // the calculator does the maths (tax is not part of the line total here)
+        // the calculator does the maths: (price - discount + tax) x quantity
         BillItem item;
         item.unitPrice = line.unitPrice;
+        item.taxPerUnit = line.taxPerUnit;
         item.discountPerUnit = line.discountPerUnit;
         item.quantity = line.quantity;
         BillTotals lineTotals = calculator.calculate(vector<BillItem>(1, item));
 
-        table->setItem((int)i, 0, new QTableWidgetItem(text(line.acronym)));
-        table->setItem((int)i, 1, new QTableWidgetItem(money(line.unitPrice)));
-        table->setItem((int)i, 2, new QTableWidgetItem(money(line.discountPerUnit)));
-        table->setItem((int)i, 3, new QTableWidgetItem(QString::number(line.quantity, 'g', 10)));
-        table->setItem((int)i, 4, new QTableWidgetItem(money(lineTotals.totalPayable)));
+        table->setItem((int)i, 0, new QTableWidgetItem(QString::number(i + 1)));   // 1, 2, 3 ...
+        table->setItem((int)i, 1, new QTableWidgetItem(text(line.acronym)));
+        table->setItem((int)i, 2, new QTableWidgetItem(text(line.barcode)));
+        table->setItem((int)i, 3, new QTableWidgetItem(money(line.unitPrice)));
+        table->setItem((int)i, 4, new QTableWidgetItem(money(line.taxPerUnit)));
+        table->setItem((int)i, 5, new QTableWidgetItem(money(line.discountPerUnit)));
+        table->setItem((int)i, 6, new QTableWidgetItem(QString::number(line.quantity, 'g', 10)));
+        table->setItem((int)i, 7, new QTableWidgetItem(money(lineTotals.totalPayable)));
     }
 
     // ----- totals -----
