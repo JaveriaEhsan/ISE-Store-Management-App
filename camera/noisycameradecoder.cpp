@@ -12,6 +12,9 @@ namespace {
 constexpr int MarkerBits    = 3;    // modules in the start / end marker
 constexpr int StepsPerPixel = 20;   // width resolution: 0.05 px
 constexpr int MaxModulePx   = 20;   // widest module we try
+constexpr int    DigitValues        = 10;     // digits 0 to 9
+constexpr double SampleWindowRatio  = 0.25;   // sample window = 1/4 of module width
+constexpr int    MaxTransitionsMult = 3;      // allowed transitions = 3 x Total_Bits
 
 // Majority vote over a small window around the module center.
 // 'ones' is a prefix-sum array: ones[i] = number of '1' pixels in row[0, i).
@@ -19,7 +22,7 @@ constexpr int MaxModulePx   = 20;   // widest module we try
 inline char sampleModule(const vector<int>& ones, int start, int module, double width)
 {
     const int center = start + static_cast<int>((module + 0.5) * width);
-    const int half   = static_cast<int>(width * 0.25);
+    const int half   = static_cast<int>(width * SampleWindowRatio);
 
     const int count = ones[center + half + 1] - ones[center - half];
     const int total = 2 * half + 1;
@@ -43,7 +46,7 @@ bool decodeAt(const vector<int>& ones, int start, double width, string& candidat
         const int firstModule = MarkerBits + i * Bits_Per_Digit;
         bool found = false;
 
-        for (int digit = 0; digit < 10 && !found; ++digit)
+        for (int digit = 0; digit < DigitValues && !found; ++digit)
         {
             bool match = true;
             for (int j = 0; j < Bits_Per_Digit; ++j)
@@ -91,7 +94,7 @@ bool decodecameraNoisyRow(const string& row, string& number, string& error)
     int transitions = 0;
     for (int i = 1; i < rowSize; ++i)
         transitions += (row[i] != row[i - 1]);
-    if (transitions > 3 * Total_Bits)
+    if (transitions > MaxTransitionsMult * Total_Bits)
     {
         error = "Too many transitions for a barcode.";
         return false;
@@ -106,7 +109,7 @@ bool decodecameraNoisyRow(const string& row, string& number, string& error)
     for (int step = StepsPerPixel; step <= maxStep; ++step)
     {
         const double width = static_cast<double>(step) / StepsPerPixel;
-        const int half = static_cast<int>(width * 0.25);
+        const int half = static_cast<int>(width * SampleWindowRatio);
 
         // Last start where the final module's whole sample window is inside the row.
         const int lastStart =

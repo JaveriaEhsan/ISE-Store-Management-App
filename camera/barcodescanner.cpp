@@ -11,6 +11,16 @@ using namespace cv;
 
 namespace {
 
+    constexpr int    MinCloseKernel  = 15;
+constexpr int    CloseKernelDiv  = 30;
+constexpr int    MinRegionWidth  = 60;
+constexpr int    MinAspectRatio  = 2;     // width must be >= 2 x height
+constexpr int    MinRegionArea   = 1000;
+constexpr int    BlackThreshold  = 128;   // darker than this = '1'
+constexpr int    FallbackRowStep = 4;     // last resort: every 4th row
+constexpr double RowPositions[]  = { 0.25, 0.32, 0.40, 0.46, 0.50, 0.54, 0.60, 0.68, 0.75 };
+
+
 Mat preprocessFrame(const Mat& frame)
 {
     Mat gray, blurred, binary;
@@ -44,7 +54,7 @@ vector<Rect> detectBarcodeRegions(const Mat& image)
     convertScaleAbs(gradient, detected);
     threshold(detected, detected, 0, 255, THRESH_BINARY | THRESH_OTSU);
 
-    const int kernelWidth = max(15, image.cols / 30);
+    const int kernelWidth = max(MinCloseKernel, image.cols / CloseKernelDiv);
     Mat closeKernel = getStructuringElement(MORPH_RECT, Size(kernelWidth, 3));
     morphologyEx(detected, detected, MORPH_CLOSE, closeKernel);
 
@@ -60,10 +70,9 @@ vector<Rect> detectBarcodeRegions(const Mat& image)
     for (const auto& contour : contours)
     {
         Rect box = boundingRect(contour);
-        if (box.width < 60) continue;
-        if (box.width < box.height * 2) continue;
-        if (box.area() < 1000) continue;
-
+       if (box.width < MinRegionWidth) continue;
+       if (box.width < box.height * MinAspectRatio) continue;
+       if (box.area() < MinRegionArea) continue;
         const int mx = box.width / 20;
         const int my = box.height / 5;
         box.x = max(0, box.x - mx);
@@ -84,8 +93,7 @@ bool decodeBinaryRow(const Mat& img, int r, string& decodedNumber)
     string row(img.cols, '0');
     const uchar* pixels = img.ptr<uchar>(r);
     for (int c = 0; c < img.cols; ++c)
-        row[c] = (pixels[c] < 128) ? '1' : '0';
-
+       row[c] = (pixels[c] < BlackThreshold) ? '1' : '0';
     string candidate, error;
     if (decodecameraNoisyRow(row, candidate, error))
     {
@@ -101,10 +109,8 @@ bool decodeRegion(const Mat& region, string& decodedNumber)
     if (region.empty() || region.type() != CV_8UC1)
         return false;
 
-    static const double positions[] =
-        { 0.25, 0.32, 0.40, 0.46, 0.50, 0.54, 0.60, 0.68, 0.75 };
-
-    for (double p : positions)
+    
+    for (double p : RowPositions)
     {
         const int r = min(region.rows - 1, static_cast<int>(region.rows * p));
         if (decodeBinaryRow(region, r, decodedNumber))
@@ -154,7 +160,7 @@ bool BarcodeScanner::tryDecode(const Mat& frame, string& number, Rect* box) cons
     {
         string first;
         int firstRow = -1;
-        for (int r = 0; r < binary.rows; r += 4)
+        for (int r = 0; r < binary.rows; r += FallbackRowStep)
         {
             string cand;
             if (!decodeBinaryRow(binary, r, cand))
