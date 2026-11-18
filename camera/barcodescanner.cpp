@@ -1,21 +1,23 @@
 #include "barcodescanner.h"
+#include "noisycameradecoder.h"
+
 #include <opencv2/imgproc.hpp>
 #include <algorithm>
-#include<iostream>
 #include <string>
 #include <vector>
+
 using namespace std;
 using namespace cv;
 
-#include "noisycameradecoder.h"      // CHANGED: same camera/ folder
+namespace {
 
-static Mat preprocessFrame(const Mat& frame)
+Mat preprocessFrame(const Mat& frame)
 {
     Mat gray, blurred, binary;
-    // CHANGED: accepts 1, 3 or 4 channel frames (yours: BGR2GRAY only)
-    
+
     if (frame.empty())
         return binary;
+
     if (frame.channels() == 3)
         cvtColor(frame, gray, COLOR_BGR2GRAY);
     else if (frame.channels() == 4)
@@ -23,105 +25,155 @@ static Mat preprocessFrame(const Mat& frame)
     else if (frame.channels() == 1)
         gray = frame;
     else
-        return binary;           
+        return binary;
+
     if (gray.depth() != CV_8U)
         gray.convertTo(gray, CV_8U);
+
     GaussianBlur(gray, blurred, Size(3, 3), 0);
-    equalizeHist(blurred, blurred);
+
+    // equalizeHist removed: it destroyed blurred bars before Otsu ran.
     threshold(blurred, binary, 0, 255, THRESH_BINARY | THRESH_OTSU);
     return binary;
 }
 
-static vector<Rect> detectBarcodeRegions(const Mat& image)   // unchanged
+vector<Rect> detectBarcodeRegions(const Mat& image)
 {
     Mat gradient, detected;
     Sobel(image, gradient, CV_16S, 1, 0, 3);
     convertScaleAbs(gradient, detected);
-    threshold(detected,detected,0,255,THRESH_BINARY | THRESH_OTSU);
+    threshold(detected, detected, 0, 255, THRESH_BINARY | THRESH_OTSU);
 
-    int kernelWidth = max(15, image.cols / 30);
-    Mat kernel = getStructuringElement(MORPH_RECT, Size(kernelWidth, 3));
-    morphologyEx(detected, detected, MORPH_CLOSE, kernel);
-    Mat dilationKernel = getStructuringElement(
-    MORPH_RECT,
-    Size(5, 3)
-);
+    const int kernelWidth = max(15, image.cols / 30);
+    Mat closeKernel = getStructuringElement(MORPH_RECT, Size(kernelWidth, 3));
+    morphologyEx(detected, detected, MORPH_CLOSE, closeKernel);
 
-dilate(detected, detected, dilationKernel);
+    Mat dilateKernel = getStructuringElement(MORPH_RECT, Size(5, 3));
+    dilate(detected, detected, dilateKernel);
 
     vector<vector<Point>> contours;
     findContours(detected, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
 
     vector<Rect> regions;
     regions.reserve(contours.size());
-    for (const auto& contour : contours) {
+
+    for (const auto& contour : contours)
+    {
         Rect box = boundingRect(contour);
         if (box.width < 60) continue;
         if (box.width < box.height * 2) continue;
         if (box.area() < 1000) continue;
 
-        int mx = box.width / 20;
-        int my = box.height / 5;
+        const int mx = box.width / 20;
+        const int my = box.height / 5;
         box.x = max(0, box.x - mx);
         box.y = max(0, box.y - my);
         box.width  = min(image.cols - box.x, box.width + 2 * mx);
         box.height = min(image.rows - box.y, box.height + 2 * my);
         regions.push_back(box);
     }
-    sort(regions.begin(),regions.end(),[](const Rect& a, const Rect& b){
-        return a.area() > b.area();
-    }
-);
+
+    sort(regions.begin(), regions.end(),
+         [](const Rect& a, const Rect& b) { return a.area() > b.area(); });
     return regions;
 }
 
-static bool decodeRegion(const Mat& region, string& decodedNumber)  // unchanged
+// Turn one row of a binary image into a '1'/'0' string and try to decode it.
+bool decodeBinaryRow(const Mat& img, int r, string& decodedNumber)
 {
-    if (region.empty()) return false;
-    if(region.type() != CV_8UC1)
-        return false;
+    string row(img.cols, '0');
+    const uchar* pixels = img.ptr<uchar>(r);
+    for (int c = 0; c < img.cols; ++c)
+        row[c] = (pixels[c] < 128) ? '1' : '0';
 
-    static const double positions[] = {0.30, 0.40, 0.50, 0.60, 0.70};
-    for (double p : positions) {
-        int r = min(region.rows - 1, static_cast<int>(region.rows * p));
-        string row;
-        row.resize(region.cols);
-        const uchar* pixels = region.ptr<uchar>(r);
-        for (int c = 0; c < region.cols; c++)
-            row[c] = (pixels[c] < 128) ? '1' : '0';
-        string candidate, error;
-        if (decodecameraNoisyRow(row, candidate, error)) {
-            decodedNumber = candidate;
-            return true;
-        }
+    string candidate, error;
+    if (decodecameraNoisyRow(row, candidate, error))
+    {
+        decodedNumber = candidate;
+        return true;
     }
     return false;
 }
 
-// CHANGED: was processFrame(frame, number, Rect& barcodeBox)
+// Try several rows through the middle of a region.
+bool decodeRegion(const Mat& region, string& decodedNumber)
+{
+    if (region.empty() || region.type() != CV_8UC1)
+        return false;
+
+    static const double positions[] =
+        { 0.25, 0.32, 0.40, 0.46, 0.50, 0.54, 0.60, 0.68, 0.75 };
+
+    for (double p : positions)
+    {
+        const int r = min(region.rows - 1, static_cast<int>(region.rows * p));
+        if (decodeBinaryRow(region, r, decodedNumber))
+            return true;
+    }
+    return false;
+}
+
+} // namespace
+
 bool BarcodeScanner::tryDecode(const Mat& frame, string& number, Rect* box) const
 {
     number.clear();
     if (box)
-    *box=Rect();
-    if (frame.empty()) return false;
+        *box = Rect();
+
+    if (frame.empty())
+        return false;
 
     Mat binary = preprocessFrame(frame);
-    if(binary.empty()) 
-    return false;
-    for (const Rect& r : detectBarcodeRegions(binary)) {
-        if(r.empty())
-        continue;
-        if (decodeRegion(binary(r), number)) {
-            if (box) *box = r;                       // CHANGED: optional pointer
+    if (binary.empty())
+        return false;
+
+    // 1. Detected regions, largest first.
+    for (const Rect& r : detectBarcodeRegions(binary))
+    {
+        if (r.empty())
+            continue;
+
+        if (decodeRegion(binary(r), number))
+        {
+            if (box)
+                *box = r;
             return true;
         }
     }
 
-    // Fallback: scan the complete frame
-    if (decodeRegion(binary, number)) {
-        if (box) *box = Rect(0, 0, frame.cols, frame.rows);
+    // 2. Fallback: middle rows of the whole frame.
+    if (decodeRegion(binary, number))
+    {
+        if (box)
+            *box = Rect(0, 0, frame.cols, frame.rows);
         return true;
     }
+
+    // 3. Last resort: every 4th row; accept only when two rows agree.
+    {
+        string first;
+        int firstRow = -1;
+        for (int r = 0; r < binary.rows; r += 4)
+        {
+            string cand;
+            if (!decodeBinaryRow(binary, r, cand))
+                continue;
+
+            if (firstRow < 0)
+            {
+                first = cand;
+                firstRow = r;
+            }
+            else if (cand == first)
+            {
+                number = cand;
+                if (box)
+                    *box = Rect(0, firstRow, frame.cols, 1);
+                return true;
+            }
+        }
+    }
+
     return false;
 }
