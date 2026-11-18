@@ -70,7 +70,6 @@ void InventoryWindow::refresh()
 {
     repository->load();  
     vector<Product> products = repository->getAll();
-    vector<Product> products = repository->getAll();
     table->setRowCount((int)products.size());
 
     for (int row = 0; row < (int)products.size(); row++)

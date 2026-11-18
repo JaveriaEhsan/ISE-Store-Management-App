@@ -311,25 +311,9 @@ bool ProductRepository::save() const
         return false;
     }
 
-    out.precision(10);   // avoids numbers like 1e+06
     for (size_t i = 0; i < products.size(); i++)
     {
-        const Product& p = products[i];
-
-        // write the name with _ instead of spaces, same as the file format
-        string name = p.getName();
-        for (size_t j = 0; j < name.size(); j++)
-        {
-            if (name[j] == ' ')
-            {
-                name[j] = '_';
-            }
-        }
-
-        out << p.getId() << " " << p.getBarcode() << " " << p.getAcronym() << " "
-            << name << " " << p.getUnit() << " " << p.getPrice() << " "
-            << p.getTax() << " " << p.getDiscount() << " " << p.getQuantity() << " "
-            << p.getBarcodePath() << "#" << endl;
+        out << toLine(products[i]) << endl;
     }
 
     // keep the lines we could not read, so they are not lost
@@ -369,4 +353,97 @@ bool ProductRepository::update(const Product& product)
         }
     }
     return false;   // product not found
+}
+// One product as a line of Product.txt (the name uses _ instead of spaces)
+string ProductRepository::toLine(const Product& p) const
+{
+    string name = p.getName();
+    for (size_t j = 0; j < name.size(); j++)
+    {
+        if (name[j] == ' ')
+        {
+            name[j] = '_';
+        }
+    }
+
+    ostringstream out;
+    out.precision(10);   // avoids numbers like 1e+06
+    out << p.getId() << " " << p.getBarcode() << " " << p.getAcronym() << " "
+        << name << " " << p.getUnit() << " " << p.getPrice() << " "
+        << p.getTax() << " " << p.getDiscount() << " " << p.getQuantity() << " "
+        << p.getBarcodePath() << "#";
+    return out.str();
+}
+
+// The next free id: the biggest id in the file plus 1
+string ProductRepository::nextId() const
+{
+    long long biggest = 0;
+    for (size_t i = 0; i < products.size(); i++)
+    {
+        try
+        {
+            long long id = stoll(products[i].getId());
+            if (id > biggest)
+            {
+                biggest = id;
+            }
+        }
+        catch (...) {}   // an id that is too long is ignored
+    }
+    return to_string(biggest + 1);
+}
+
+bool ProductRepository::add(const Product& product, string& error)
+{
+    error = "";
+
+    Product withId(nextId(), product.getBarcode(), product.getAcronym(), product.getName(),
+        product.getUnit(), product.getPrice(), product.getTax(),
+        product.getDiscount(), product.getQuantity(), product.getBarcodePath());
+
+    // check it with the same rules that are used when the file is loaded
+    Product checked;
+    if (!parseLine(toLine(withId), checked, error))
+    {
+        return false;
+    }
+    if (isDuplicate(checked))
+    {
+        error = "A product with this barcode already exists.";
+        return false;
+    }
+
+    products.push_back(checked);
+    if (!save())
+    {
+        products.pop_back();
+        error = "Could not save " + filename + ".";
+        return false;
+    }
+    return true;
+}
+// The next free barcode: the biggest barcode in the file plus 1 (the first one is 100000)
+string ProductRepository::nextBarcode() const
+{
+    long long biggest = 99999;
+    for (size_t i = 0; i < products.size(); i++)
+    {
+        try
+        {
+            long long b = stoll(products[i].getBarcode());
+            if (b > biggest)
+            {
+                biggest = b;
+            }
+        }
+        catch (...) {}
+    }
+
+    long long next = biggest + 1;
+    if (next > 999999)
+    {
+        return "";   // there is no free 6-digit barcode left
+    }
+    return to_string(next);
 }

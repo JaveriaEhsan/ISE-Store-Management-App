@@ -19,6 +19,10 @@ public:
     virtual bool update(const Product& product) = 0;
 
     virtual vector<string> getErrors() const { return vector<string>(); }
+
+    virtual bool add(const Product& product, string& error) = 0;
+
+    virtual string nextBarcode() const = 0;
 };
 
 #endif

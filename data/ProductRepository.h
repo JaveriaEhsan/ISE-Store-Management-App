@@ -21,6 +21,9 @@ private:
     // Writes all products back to the file (skipped lines are kept at the end)
     bool save() const;
 
+    string toLine(const Product& p) const;   // a product as one line of the file
+    string nextId() const;
+
 public:
     ProductRepository(const string& filename);
 
@@ -34,6 +37,8 @@ public:
     bool findByBarcode(const string& barcode, Product& result) const override;
     vector<Product> getAll() const override;
     bool update(const Product& product) override;
+    bool add(const Product& product, string& error) override;
+    string nextBarcode() const override;
 };
 
 #endif
