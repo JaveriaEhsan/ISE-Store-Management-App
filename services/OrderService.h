@@ -13,7 +13,6 @@
 #include "../data/OrderDetailRepository.h"
 #include "../data/BillRepository.h"
 
-// What the cashier enters at the end of the order
 struct CheckoutInfo
 {
     string customerName;
@@ -23,7 +22,6 @@ struct CheckoutInfo
     string status = STATUS_PAID;
 };
 
-// What checkout created, so the GUI can show the bill
 struct CheckoutResult
 {
     Order order;
@@ -46,7 +44,7 @@ public:
     const vector<BillItem>& getItems() const;
     BillTotals getTotals() const;
 
-    // Builds and saves the order, its details and the bill, then reduces stock
+   
     bool checkout(const CheckoutInfo& info,
         IProductRepository& products,
         OrderRepository& orders,
