@@ -27,7 +27,6 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent)
     const Order& o = result.order;
     const Bill& b = result.bill;
 
-    // ----- header -----
     QFormLayout* header = new QFormLayout();
     header->addRow("Order id:", new QLabel(text(o.orderId), this));
     header->addRow("Bill id:", new QLabel(text(b.billId), this));
@@ -38,8 +37,8 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent)
     header->addRow("Merchant:", new QLabel(text(o.merchant), this));
     header->addRow("Status:", new QLabel(text(b.status), this));
 
-    // ----- lines table -----
-       // ----- lines table -----
+  
+       // lines table 
     QTableWidget* table = new QTableWidget((int)b.lines.size(), 8, this);
     table->setHorizontalHeaderLabels(
         { "ID", "Product", "Barcode", "Unit price", "Tax/unit", "Discount", "Quantity", "Total price" });
@@ -52,7 +51,7 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent)
     {
         const BillLine& line = b.lines[i];
 
-        // the calculator does the maths: (price - discount + tax) x quantity
+        // total= (price - discount + tax) x quantity
         BillItem item;
         item.unitPrice = line.unitPrice;
         item.taxPerUnit = line.taxPerUnit;
@@ -60,7 +59,7 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent)
         item.quantity = line.quantity;
         BillTotals lineTotals = calculator.calculate(vector<BillItem>(1, item));
 
-        table->setItem((int)i, 0, new QTableWidgetItem(QString::number(i + 1)));   // 1, 2, 3 ...
+        table->setItem((int)i, 0, new QTableWidgetItem(QString::number(i + 1)));   
         table->setItem((int)i, 1, new QTableWidgetItem(text(line.acronym)));
         table->setItem((int)i, 2, new QTableWidgetItem(text(line.barcode)));
         table->setItem((int)i, 3, new QTableWidgetItem(money(line.unitPrice)));
@@ -70,7 +69,7 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent)
         table->setItem((int)i, 7, new QTableWidgetItem(money(lineTotals.totalPayable)));
     }
 
-    // ----- totals -----
+    //  totals 
     QFormLayout* totals = new QFormLayout();
     totals->addRow("Total without tax:", new QLabel(money(b.totalWithoutTax), this));
     totals->addRow("Total discount:", new QLabel(money(b.totalDiscount), this));
