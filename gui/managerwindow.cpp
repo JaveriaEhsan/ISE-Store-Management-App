@@ -2,6 +2,7 @@
 #include "inventorywindow.h"
 #include "productdialog.h"
 #include "addproductdialog.h"
+#include "scandialog.h"
 #include "../models/product.h"
 
 #include "../shared.h"
@@ -17,6 +18,8 @@
 #include <QStackedWidget>
 #include <QMessageBox>
 #include <QDialog>
+#include <QDoubleSpinBox>
+#include <QFormLayout>
 #include <QDir>
 #include <QFile>
 #include <QRegularExpression>
@@ -29,7 +32,6 @@
 #include <QPolygonF>
 #include <QtMath>
 
-
 namespace
 {
 // 6 digits, first digit not zero
@@ -37,7 +39,6 @@ bool validNumber(const QString &number)
 {
     return isvalidInput(number.toStdString());
 }
-
 
 QImage buildImage(const QString &digits)
 {
@@ -69,7 +70,7 @@ QString barcodePath(const QString &number)
 {
     return QDir(barcodeFolder()).filePath(number + ".png");
 }
-} 
+}
 
 namespace
 {
@@ -213,7 +214,8 @@ QString primaryButtonStyle()
            "background-color: #1761D1; color: white;"
            "font-size: 18px; font-weight: bold; border-radius: 9px;"
            "}"
-           "QPushButton:hover { background-color: #104AA9; }";
+           "QPushButton:hover { background-color: #104AA9; }"
+           "QPushButton:disabled { background-color: #A9B8D6; }";
 }
 
 QString secondaryButtonStyle()
@@ -252,7 +254,8 @@ QString pageHeadingStyle()
 {
     return "font-size: 32px; color: #101A35; font-weight: bold;";
 }
-} 
+}
+
 ManagerWindow::ManagerWindow(QWidget *parent)
     : QMainWindow(parent)
 {
@@ -272,8 +275,7 @@ ManagerWindow::ManagerWindow(QWidget *parent)
     productScanButton = nullptr;
 
     productNumberInput = nullptr;
-    generateBarcodeButton = nullptr;
-    generateAllBarcodesButton = nullptr;
+    viewBarcodeButton = nullptr;
 
     productsCard = nullptr;
     barcodeCard = nullptr;
@@ -287,8 +289,6 @@ void ManagerWindow::setRepository(IProductRepository *repo)
 {
     repository = repo;
 }
-
-
 
 void ManagerWindow::setupUI()
 {
@@ -333,10 +333,30 @@ void ManagerWindow::setupUI()
         "border-radius: 17px;"
     );
 
+    // Back button: closes this window, the main window shows again
+    QPushButton *backButton = new QPushButton("< Back", this);
+    backButton->setFixedSize(90, 34);
+    backButton->setCursor(Qt::PointingHandCursor);
+    backButton->setStyleSheet(
+        "QPushButton {"
+        "background-color: transparent;"
+        "color: white;"
+        "font-size: 15px;"
+        "font-weight: bold;"
+        "border: 2px solid white;"
+        "border-radius: 17px;"
+        "}"
+        "QPushButton:hover { background-color: #1B3485; }"
+    );
+
     brandLayout->addWidget(logoIcon);
     brandLayout->addWidget(logo);
     brandLayout->addStretch();
+    brandLayout->addWidget(backButton);
+    brandLayout->addSpacing(10);
     brandLayout->addWidget(managerBadge);
+
+    connect(backButton, &QPushButton::clicked, this, &QWidget::close);
 
     QLabel *subtitle = new QLabel("Store Management Dashboard");
     subtitle->setStyleSheet("color: white; font-size: 17px;");
@@ -356,9 +376,6 @@ void ManagerWindow::setupUI()
     createMainContent();
 }
 
-
-// Sidebar
-
 void ManagerWindow::createSidebar()
 {
     sidebar = new QWidget;
@@ -370,7 +387,7 @@ void ManagerWindow::createSidebar()
     sideLayout->setSpacing(14);
 
     dashboardButton = new QPushButton("  Dashboard");
-    barcodesButton = new QPushButton("  Barcodes");
+    barcodesButton = new QPushButton("  View Barcode");
     inventoryButton = new QPushButton("  Inventory");
     productScanButton = new QPushButton("  Product Scan");
 
@@ -422,7 +439,6 @@ void ManagerWindow::createSidebar()
             this, &ManagerWindow::showProductScan);
 }
 
-
 void ManagerWindow::createMainContent()
 {
     mainContent = new QWidget;
@@ -444,8 +460,6 @@ void ManagerWindow::createMainContent()
 
     pages->setCurrentWidget(dashboardPage);
 }
-
-
 
 QWidget *ManagerWindow::createDashboardPage()
 {
@@ -469,7 +483,7 @@ QWidget *ManagerWindow::createDashboardPage()
     productsCard = makeCard(IconCube, QColor("#1761D1"),
                             "Products", "Inventory");
     barcodeCard = makeCard(IconBarcode, QColor("#15952C"),
-                           "Barcode", "Generator");
+                           "Barcode", "Viewer");
 
     cardsLayout->addWidget(productsCard);
     cardsLayout->addWidget(barcodeCard);
@@ -481,43 +495,46 @@ QWidget *ManagerWindow::createDashboardPage()
 
     QVBoxLayout *quickLayout = new QVBoxLayout(quick);
     quickLayout->setContentsMargins(24, 22, 24, 22);
-    quickLayout->setSpacing(14);
+    quickLayout->setSpacing(12);
 
     QLabel *quickHeading = new QLabel("Quick Actions");
     quickHeading->setStyleSheet(
         "font-size: 24px; font-weight: bold; color: #172342;");
 
     QPushButton *addProduct = new QPushButton("Add New Product");
-    addProduct->setMinimumHeight(50);
-    addProduct->setCursor(Qt::PointingHandCursor);
     addProduct->setStyleSheet(primaryButtonStyle());
 
-    QPushButton *openBarcodes = new QPushButton("Open Barcode Generator");
-    openBarcodes->setMinimumHeight(50);
-    openBarcodes->setCursor(Qt::PointingHandCursor);
+    QPushButton *updateProduct = new QPushButton("Update Price / Quantity");
+    updateProduct->setStyleSheet(secondaryButtonStyle());
+
+    QPushButton *openBarcodes = new QPushButton("View Barcode");
     openBarcodes->setStyleSheet(secondaryButtonStyle());
 
     QPushButton *openInventory = new QPushButton("Inventory");
-    openInventory->setMinimumHeight(50);
-    openInventory->setCursor(Qt::PointingHandCursor);
     openInventory->setStyleSheet(secondaryButtonStyle());
 
     QPushButton *openScan = new QPushButton("View product by scanning");
-    openScan->setMinimumHeight(50);
-    openScan->setCursor(Qt::PointingHandCursor);
     openScan->setStyleSheet(secondaryButtonStyle());
 
+    QPushButton *actionButtons[] = {
+        addProduct, updateProduct, openBarcodes, openInventory, openScan
+    };
+
     quickLayout->addWidget(quickHeading);
-    quickLayout->addWidget(addProduct);
-    quickLayout->addWidget(openBarcodes);
-    quickLayout->addWidget(openInventory);
-    quickLayout->addWidget(openScan);
+    for (QPushButton *b : actionButtons)
+    {
+        b->setMinimumHeight(48);
+        b->setCursor(Qt::PointingHandCursor);
+        quickLayout->addWidget(b);
+    }
 
     layout->addWidget(quick);
     layout->addStretch();
 
     connect(addProduct, &QPushButton::clicked,
             this, &ManagerWindow::showAddProduct);
+    connect(updateProduct, &QPushButton::clicked,
+            this, &ManagerWindow::showUpdateProduct);
     connect(openBarcodes, &QPushButton::clicked,
             this, &ManagerWindow::showBarcodes);
     connect(openInventory, &QPushButton::clicked,
@@ -528,8 +545,6 @@ QWidget *ManagerWindow::createDashboardPage()
     return page;
 }
 
-
-
 QWidget *ManagerWindow::createBarcodePage()
 {
     QWidget *page = new QWidget;
@@ -537,11 +552,11 @@ QWidget *ManagerWindow::createBarcodePage()
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(18);
 
-    QLabel *heading = new QLabel("Barcode Management");
+    QLabel *heading = new QLabel("View Barcode");
     heading->setStyleSheet(pageHeadingStyle());
 
     QLabel *description = new QLabel(
-        "Regenerate the barcode image of an existing product");
+        "Enter the 6-digit barcode of a product to see its barcode image");
     description->setStyleSheet("font-size: 17px; color: #606878;");
 
     layout->addWidget(heading);
@@ -556,7 +571,7 @@ QWidget *ManagerWindow::createBarcodePage()
     panelLayout->setSpacing(14);
 
     productNumberInput = new QLineEdit;
-    productNumberInput->setPlaceholderText("Enter 6-digit product number");
+    productNumberInput->setPlaceholderText("Enter 6-digit barcode");
     productNumberInput->setMaxLength(6);
     productNumberInput->setMinimumHeight(48);
     productNumberInput->setValidator(
@@ -564,15 +579,10 @@ QWidget *ManagerWindow::createBarcodePage()
             QRegularExpression("[0-9]{0,6}"), productNumberInput));
     productNumberInput->setStyleSheet(inputStyle());
 
-    generateBarcodeButton = new QPushButton("Regenerate Barcode");
-    generateBarcodeButton->setMinimumHeight(50);
-    generateBarcodeButton->setCursor(Qt::PointingHandCursor);
-    generateBarcodeButton->setStyleSheet(primaryButtonStyle());
-
-    generateAllBarcodesButton = new QPushButton("Generate all barcodes");
-    generateAllBarcodesButton->setMinimumHeight(48);
-    generateAllBarcodesButton->setCursor(Qt::PointingHandCursor);
-    generateAllBarcodesButton->setStyleSheet(secondaryButtonStyle());
+    viewBarcodeButton = new QPushButton("View Barcode");
+    viewBarcodeButton->setMinimumHeight(50);
+    viewBarcodeButton->setCursor(Qt::PointingHandCursor);
+    viewBarcodeButton->setStyleSheet(primaryButtonStyle());
 
     QFrame *preview = new QFrame;
     preview->setStyleSheet(
@@ -592,7 +602,7 @@ QWidget *ManagerWindow::createBarcodePage()
     barcodeImage->setAlignment(Qt::AlignCenter);
     barcodeImage->setPixmap(makeIcon(IconBarcode, QColor("#AAB8D4"), 60));
 
-    barcodeDisplay = new QLabel("Barcode preview will appear here");
+    barcodeDisplay = new QLabel("Barcode image will appear here");
     barcodeDisplay->setAlignment(Qt::AlignCenter);
     barcodeDisplay->setStyleSheet("font-size: 15px; color: #606878;");
 
@@ -600,19 +610,18 @@ QWidget *ManagerWindow::createBarcodePage()
     previewLayout->addWidget(barcodeDisplay);
 
     panelLayout->addWidget(productNumberInput);
-    panelLayout->addWidget(generateBarcodeButton);
-    panelLayout->addWidget(generateAllBarcodesButton);
+    panelLayout->addWidget(viewBarcodeButton);
     panelLayout->addWidget(preview);
 
     layout->addWidget(panel);
     layout->addStretch();
 
-    connect(generateBarcodeButton, &QPushButton::clicked,
-            this, &ManagerWindow::generateBarcode);
+    connect(viewBarcodeButton, &QPushButton::clicked,
+            this, &ManagerWindow::viewBarcode);
+    connect(productNumberInput, &QLineEdit::returnPressed,
+            this, &ManagerWindow::viewBarcode);
     connect(productNumberInput, &QLineEdit::textChanged,
             this, &ManagerWindow::productNumberChanged);
-    connect(generateAllBarcodesButton, &QPushButton::clicked,
-            this, &ManagerWindow::generateAllBarcodes);
 
     return page;
 }
@@ -620,7 +629,8 @@ QWidget *ManagerWindow::createBarcodePage()
 void ManagerWindow::resetBarcodePreview()
 {
     barcodeImage->setPixmap(makeIcon(IconBarcode, QColor("#AAB8D4"), 60));
-    barcodeDisplay->setText("Barcode preview will appear here");
+    barcodeDisplay->setText("Barcode image will appear here");
+    barcodeDisplay->setStyleSheet("font-size: 15px; color: #606878;");
 }
 
 // Error as soon as 6 digits are typed with a leading zero
@@ -633,12 +643,12 @@ void ManagerWindow::productNumberChanged(const QString &text)
 
         QMessageBox::warning(
             this, "Invalid Input",
-            "Invalid product number.\nThe first digit cannot be zero.");
+            "Invalid barcode.\nThe first digit cannot be zero.");
     }
 }
 
-// Regenerate: only for a product that is already in Product.txt
-void ManagerWindow::generateBarcode()
+// View Barcode: shows the image if the product exists
+void ManagerWindow::viewBarcode()
 {
     QString number = productNumberInput->text();
 
@@ -652,24 +662,11 @@ void ManagerWindow::generateBarcode()
             "Please enter exactly 6 digits.\nThe first digit cannot be zero.");
         return;
     }
-    
-    if (repository != nullptr)
-   {
-    repository->load();
-    Product existing;
-      if (!repository->findByBarcode(number.toStdString(), existing)){
-      
-        QMessageBox::warning(this, "Generate Barcode",
-            "No product has the barcode " + number + ".\nUse Add New Product first.");
-        return;
-      }
-    }
-
 
     if (repository == nullptr)
     {
         QMessageBox::information(
-            this, "Regenerate Barcode", "Inventory is not connected yet.");
+            this, "View Barcode", "Inventory is not connected yet.");
         return;
     }
 
@@ -677,24 +674,32 @@ void ManagerWindow::generateBarcode()
     Product product;
     if (!repository->findByBarcode(number.toStdString(), product))
     {
+        resetBarcodePreview();
+        barcodeDisplay->setText("Product does not exist: " + number);
+        barcodeDisplay->setStyleSheet("font-size: 16px; color: #C62828;");
+
         QMessageBox::warning(
-            this, "Regenerate Barcode",
-            "This barcode is not in Product.txt.\n"
-            "Use Add New Product to create it.");
+            this, "View Barcode",
+            "Product does not exist.\nNo product has the barcode " + number + ".");
         return;
     }
 
+    // use the saved image; if the file is missing, make it again
     QString path = barcodePath(number);
-    bool existed = QFile::exists(path);
+    QImage img;
+    if (QFile::exists(path))
+        img.load(path);
 
-    QDir().mkpath(barcodeFolder());
-    QImage img = buildImage(number);
-
-    if (img.isNull() || !img.save(path, "PNG"))
+    if (img.isNull())
     {
-        QMessageBox::warning(
-            this, "Error", "Could not save the barcode to:\n" + path);
-        return;
+        QDir().mkpath(barcodeFolder());
+        img = buildImage(number);
+        if (img.isNull() || !img.save(path, "PNG"))
+        {
+            QMessageBox::warning(
+                this, "Error", "Could not create the barcode image:\n" + path);
+            return;
+        }
     }
 
     barcodeImage->setPixmap(QPixmap::fromImage(img).scaled(
@@ -702,67 +707,9 @@ void ManagerWindow::generateBarcode()
         Qt::KeepAspectRatio, Qt::FastTransformation));
 
     barcodeDisplay->setText(
-        number + (existed ? " - image re-made: barcodes/" : " - image created: barcodes/")
-        + number + ".png");
+        number + " - " + QString::fromStdString(product.getName()));
+    barcodeDisplay->setStyleSheet("font-size: 16px; color: #15952C;");
 }
-
-
-void ManagerWindow::generateAllBarcodes()
-{
-    if (repository == nullptr)
-    {
-        QMessageBox::information(
-            this, "Generate all barcodes", "Inventory is not connected yet.");
-        return;
-    }
-
-    repository->load();
-    vector<Product> products = repository->getAll();
-
-    if (products.empty())
-    {
-        QMessageBox::information(
-            this, "Generate all barcodes",
-            "There are no products in the inventory.");
-        return;
-    }
-
-    QDir().mkpath(barcodeFolder());
-
-    int created = 0;
-    int existed = 0;
-    int failed = 0;
-
-    for (size_t i = 0; i < products.size(); ++i)
-    {
-        QString number = QString::fromStdString(products[i].getBarcode());
-
-        if (!validNumber(number))
-        {
-            ++failed;
-            continue;
-        }
-
-        QString path = barcodePath(number);
-        if (QFile::exists(path))
-        {
-            ++existed;
-            continue;
-        }
-
-        QImage img = buildImage(number);
-        if (!img.isNull() && img.save(path, "PNG"))
-            ++created;
-        else
-            ++failed;
-    }
-
-    QMessageBox::information(
-        this, "Generate all barcodes",
-        QString("Created: %1\nAlready existed: %2\nSkipped (invalid or error): %3")
-            .arg(created).arg(existed).arg(failed));
-}
-
 
 void ManagerWindow::syncSidebarSelection()
 {
@@ -784,7 +731,6 @@ void ManagerWindow::showBarcodes()
     pages->setCurrentWidget(barcodePage);
     productNumberInput->setFocus();
 }
-
 
 void ManagerWindow::showInventory()
 {
@@ -840,14 +786,148 @@ void ManagerWindow::showAddProduct()
             QMessageBox::warning(
                 this, "Add New Product",
                 "The product was saved, but the barcode image could not be created.\n"
-                "Use Regenerate Barcode to try again.");
+                "Open View Barcode to try again.");
         }
     }
 
     syncSidebarSelection();
 }
 
-// Scan dialog -> product dialog
+// Update Price / Quantity: new price, and stock is ADDED to the old quantity
+void ManagerWindow::showUpdateProduct()
+{
+    if (repository == nullptr)
+    {
+        QMessageBox::information(
+            this, "Update Product", "Inventory is not connected yet.");
+        syncSidebarSelection();
+        return;
+    }
+
+    QDialog dialog(this);
+    dialog.setWindowTitle("Update Price / Quantity");
+    dialog.setMinimumWidth(430);
+
+    QLineEdit *barcodeInput = new QLineEdit;
+    barcodeInput->setPlaceholderText("6-digit barcode");
+    barcodeInput->setMaxLength(6);
+    barcodeInput->setValidator(new QRegularExpressionValidator(
+        QRegularExpression("[0-9]{0,6}"), barcodeInput));
+
+    QLabel *info = new QLabel("Enter the 6-digit barcode of the product.");
+    info->setWordWrap(true);
+
+    QDoubleSpinBox *priceBox = new QDoubleSpinBox;
+    priceBox->setRange(0.0, 10000000.0);
+    priceBox->setDecimals(2);
+    priceBox->setEnabled(false);
+
+    QDoubleSpinBox *addBox = new QDoubleSpinBox;
+    addBox->setRange(0.0, 10000000.0);
+    addBox->setDecimals(0);
+    addBox->setEnabled(false);
+
+    QPushButton *saveButton = new QPushButton("Save");
+    saveButton->setEnabled(false);
+    QPushButton *cancelButton = new QPushButton("Cancel");
+
+    QFormLayout *form = new QFormLayout;
+    form->addRow("Barcode:", barcodeInput);
+    form->addRow("", info);
+    form->addRow("New unit price (PKR):", priceBox);
+    form->addRow("Stock to add:", addBox);
+
+    QHBoxLayout *buttons = new QHBoxLayout;
+    buttons->addWidget(saveButton);
+    buttons->addWidget(cancelButton);
+
+    QVBoxLayout *lay = new QVBoxLayout(&dialog);
+    lay->addLayout(form);
+    lay->addLayout(buttons);
+
+    Product found;
+    bool hasProduct = false;
+
+    connect(barcodeInput, &QLineEdit::textChanged, &dialog,
+        [&](const QString &text)
+        {
+            hasProduct = false;
+            priceBox->setEnabled(false);
+            addBox->setEnabled(false);
+            saveButton->setEnabled(false);
+            info->setStyleSheet("");
+
+            if (text.length() != 6)
+            {
+                info->setText("Enter the 6-digit barcode of the product.");
+                return;
+            }
+            if (!validNumber(text))
+            {
+                info->setText("Invalid barcode. The first digit cannot be 0.");
+                info->setStyleSheet("color: #C62828;");
+                return;
+            }
+
+            repository->load();
+            if (!repository->findByBarcode(text.toStdString(), found))
+            {
+                info->setText("Product does not exist.");
+                info->setStyleSheet("color: #C62828;");
+                return;
+            }
+
+            hasProduct = true;
+            info->setText(
+                QString::fromStdString(found.getName()) +
+                "\nCurrent price: " + QString::number(found.getPrice(), 'f', 2) +
+                " PKR\nCurrent quantity: " +
+                QString::number(found.getQuantity(), 'g', 10));
+            info->setStyleSheet("color: #15952C;");
+
+            priceBox->setValue(found.getPrice());
+            addBox->setDecimals(found.getUnit() == "count" ? 0 : 3);
+            addBox->setValue(0);
+            priceBox->setEnabled(true);
+            addBox->setEnabled(true);
+            saveButton->setEnabled(true);
+        });
+
+    connect(saveButton, &QPushButton::clicked, &dialog, [&]()
+        {
+            if (!hasProduct)
+                return;
+
+            Product updated(found.getId(), found.getBarcode(),
+                            found.getAcronym(), found.getName(),
+                            found.getUnit(), priceBox->value(),
+                            found.getTax(), found.getDiscount(),
+                            found.getQuantity() + addBox->value(),
+                            found.getBarcodePath());
+
+            if (!repository->update(updated))
+            {
+                QMessageBox::warning(
+                    &dialog, "Update Product",
+                    "The product could not be updated.");
+                return;
+            }
+
+            QMessageBox::information(
+                &dialog, "Update Product",
+                "Saved.\nNew price: " + QString::number(updated.getPrice(), 'f', 2) +
+                " PKR\nNew quantity: " +
+                QString::number(updated.getQuantity(), 'g', 10));
+            dialog.accept();
+        });
+
+    connect(cancelButton, &QPushButton::clicked, &dialog, &QDialog::reject);
+
+    dialog.exec();
+    syncSidebarSelection();
+}
+
+// Scan dialog (camera or typed) -> product dialog
 void ManagerWindow::showProductScan()
 {
     if (repository == nullptr)
@@ -858,53 +938,24 @@ void ManagerWindow::showProductScan()
         return;
     }
 
-    QDialog scan(this);
-    scan.setWindowTitle("Scan product");
-    scan.setMinimumWidth(380);
-
-    QVBoxLayout *lay = new QVBoxLayout(&scan);
-    QLabel *label = new QLabel("Scan the barcode or type the 6-digit number:");
-    QLineEdit *input = new QLineEdit;
-    input->setMaxLength(6);
-    input->setMinimumHeight(36);
-    input->setValidator(new QRegularExpressionValidator(
-        QRegularExpression("[0-9]{0,6}"), input));
-
-    QPushButton *ok = new QPushButton("Find product");
-    ok->setDefault(true);
-
-    lay->addWidget(label);
-    lay->addWidget(input);
-    lay->addWidget(ok);
-
-    connect(ok, &QPushButton::clicked, &scan, &QDialog::accept);
-    connect(input, &QLineEdit::returnPressed, &scan, &QDialog::accept);
+    ScanDialog scan(this);
 
     if (scan.exec() == QDialog::Accepted)
     {
-        QString number = input->text();
+        QString number = scan.barcode();
 
-        if (!validNumber(number))
+        repository->load();
+        Product product;
+        if (repository->findByBarcode(number.toStdString(), product))
         {
-            QMessageBox::warning(
-                this, "Invalid Input",
-                "Please enter exactly 6 digits.\nThe first digit cannot be zero.");
+            ProductDialog dialog(product, this);
+            dialog.exec();
         }
         else
         {
-            repository->load();
-            Product product;
-            if (repository->findByBarcode(number.toStdString(), product))
-            {
-                ProductDialog dialog(product, this);
-                dialog.exec();
-            }
-            else
-            {
-                QMessageBox::information(
-                    this, "Product not found",
-                    "No product with barcode " + number + ".");
-            }
+            QMessageBox::information(
+                this, "Product not found",
+                "Product does not exist.\nNo product with barcode " + number + ".");
         }
     }
 

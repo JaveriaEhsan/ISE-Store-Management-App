@@ -22,15 +22,15 @@ public:
     void setRepository(IProductRepository *repo);
 
 private slots:
-    void generateBarcode();        // Regenerate Barcode (existing product)
-    void generateAllBarcodes();
+    void viewBarcode();
     void productNumberChanged(const QString &text);
 
     void showDashboard();
     void showBarcodes();
     void showInventory();
     void showProductScan();
-    void showAddProduct();         // Add New Product
+    void showAddProduct();
+    void showUpdateProduct();
 
 private:
     void setupUI();
@@ -59,8 +59,7 @@ private:
     QPushButton *productScanButton;
 
     QLineEdit *productNumberInput;
-    QPushButton *generateBarcodeButton;
-    QPushButton *generateAllBarcodesButton;
+    QPushButton *viewBarcodeButton;
 
     QFrame *productsCard;
     QFrame *barcodeCard;
