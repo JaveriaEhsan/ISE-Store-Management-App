@@ -22,7 +22,7 @@ public:
     void setRepository(IProductRepository *repo);
 
 private slots:
-    void generateBarcode();
+    void generateBarcode();        // Regenerate Barcode (existing product)
     void generateAllBarcodes();
     void productNumberChanged(const QString &text);
 
@@ -30,6 +30,7 @@ private slots:
     void showBarcodes();
     void showInventory();
     void showProductScan();
+    void showAddProduct();         // Add New Product
 
 private:
     void setupUI();

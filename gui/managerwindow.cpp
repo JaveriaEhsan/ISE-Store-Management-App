@@ -1,7 +1,10 @@
 #include "managerwindow.h"
 #include "inventorywindow.h"
 #include "productdialog.h"
+#include "addproductdialog.h"
 #include "../models/product.h"
+
+// Team's shared settings and Member 1's encoder
 #include "../shared.h"
 #include "../barcode/encoder.h"
 
@@ -27,6 +30,7 @@
 #include <QPolygonF>
 #include <QtMath>
 
+
 namespace
 {
 // 6 digits, first digit not zero
@@ -35,7 +39,7 @@ bool validNumber(const QString &number)
     return isvalidInput(number.toStdString());
 }
 
-// 48 bits from Encode(), drawn exactly like drawer.cpp does
+
 QImage buildImage(const QString &digits)
 {
     string bits = Encode(digits.toStdString());
@@ -67,6 +71,7 @@ QString barcodePath(const QString &number)
     return QDir(barcodeFolder()).filePath(number + ".png");
 }
 } 
+
 namespace
 {
 enum IconType { IconDashboard, IconBarcode, IconCube, IconScan, IconBasket };
@@ -249,7 +254,6 @@ QString pageHeadingStyle()
     return "font-size: 32px; color: #101A35; font-weight: bold;";
 }
 } 
-
 ManagerWindow::ManagerWindow(QWidget *parent)
     : QMainWindow(parent)
 {
@@ -353,6 +357,9 @@ void ManagerWindow::setupUI()
     createMainContent();
 }
 
+// ---------------------------------------------------------
+// Sidebar
+// ---------------------------------------------------------
 
 void ManagerWindow::createSidebar()
 {
@@ -417,6 +424,7 @@ void ManagerWindow::createSidebar()
             this, &ManagerWindow::showProductScan);
 }
 
+
 void ManagerWindow::createMainContent()
 {
     mainContent = new QWidget;
@@ -438,6 +446,7 @@ void ManagerWindow::createMainContent()
 
     pages->setCurrentWidget(dashboardPage);
 }
+
 
 
 QWidget *ManagerWindow::createDashboardPage()
@@ -480,10 +489,15 @@ QWidget *ManagerWindow::createDashboardPage()
     quickHeading->setStyleSheet(
         "font-size: 24px; font-weight: bold; color: #172342;");
 
+    QPushButton *addProduct = new QPushButton("Add New Product");
+    addProduct->setMinimumHeight(50);
+    addProduct->setCursor(Qt::PointingHandCursor);
+    addProduct->setStyleSheet(primaryButtonStyle());
+
     QPushButton *openBarcodes = new QPushButton("Open Barcode Generator");
     openBarcodes->setMinimumHeight(50);
     openBarcodes->setCursor(Qt::PointingHandCursor);
-    openBarcodes->setStyleSheet(primaryButtonStyle());
+    openBarcodes->setStyleSheet(secondaryButtonStyle());
 
     QPushButton *openInventory = new QPushButton("Inventory");
     openInventory->setMinimumHeight(50);
@@ -496,6 +510,7 @@ QWidget *ManagerWindow::createDashboardPage()
     openScan->setStyleSheet(secondaryButtonStyle());
 
     quickLayout->addWidget(quickHeading);
+    quickLayout->addWidget(addProduct);
     quickLayout->addWidget(openBarcodes);
     quickLayout->addWidget(openInventory);
     quickLayout->addWidget(openScan);
@@ -503,6 +518,8 @@ QWidget *ManagerWindow::createDashboardPage()
     layout->addWidget(quick);
     layout->addStretch();
 
+    connect(addProduct, &QPushButton::clicked,
+            this, &ManagerWindow::showAddProduct);
     connect(openBarcodes, &QPushButton::clicked,
             this, &ManagerWindow::showBarcodes);
     connect(openInventory, &QPushButton::clicked,
@@ -512,6 +529,8 @@ QWidget *ManagerWindow::createDashboardPage()
 
     return page;
 }
+
+
 
 QWidget *ManagerWindow::createBarcodePage()
 {
@@ -524,7 +543,7 @@ QWidget *ManagerWindow::createBarcodePage()
     heading->setStyleSheet(pageHeadingStyle());
 
     QLabel *description = new QLabel(
-        "Generate a barcode from a six-digit product number");
+        "Regenerate the barcode image of an existing product");
     description->setStyleSheet("font-size: 17px; color: #606878;");
 
     layout->addWidget(heading);
@@ -547,7 +566,7 @@ QWidget *ManagerWindow::createBarcodePage()
             QRegularExpression("[0-9]{0,6}"), productNumberInput));
     productNumberInput->setStyleSheet(inputStyle());
 
-    generateBarcodeButton = new QPushButton("Generate Barcode");
+    generateBarcodeButton = new QPushButton("Regenerate Barcode");
     generateBarcodeButton->setMinimumHeight(50);
     generateBarcodeButton->setCursor(Qt::PointingHandCursor);
     generateBarcodeButton->setStyleSheet(primaryButtonStyle());
@@ -600,13 +619,13 @@ QWidget *ManagerWindow::createBarcodePage()
     return page;
 }
 
-
 void ManagerWindow::resetBarcodePreview()
 {
     barcodeImage->setPixmap(makeIcon(IconBarcode, QColor("#AAB8D4"), 60));
     barcodeDisplay->setText("Barcode preview will appear here");
 }
 
+// Error as soon as 6 digits are typed with a leading zero
 void ManagerWindow::productNumberChanged(const QString &text)
 {
     if (text.length() == 6 && !validNumber(text))
@@ -620,6 +639,7 @@ void ManagerWindow::productNumberChanged(const QString &text)
     }
 }
 
+// Regenerate: only for a product that is already in Product.txt
 void ManagerWindow::generateBarcode()
 {
     QString number = productNumberInput->text();
@@ -635,36 +655,46 @@ void ManagerWindow::generateBarcode()
         return;
     }
 
+    if (repository == nullptr)
+    {
+        QMessageBox::information(
+            this, "Regenerate Barcode", "Inventory is not connected yet.");
+        return;
+    }
+
+    repository->load();
+    Product product;
+    if (!repository->findByBarcode(number.toStdString(), product))
+    {
+        QMessageBox::warning(
+            this, "Regenerate Barcode",
+            "This barcode is not in Product.txt.\n"
+            "Use Add New Product to create it.");
+        return;
+    }
+
     QString path = barcodePath(number);
     bool existed = QFile::exists(path);
-    QImage img;
 
-    if (existed)
-    {
-        img.load(path);
-    }
-    else
-    {
-        QDir().mkpath(barcodeFolder());
-        img = buildImage(number);
+    QDir().mkpath(barcodeFolder());
+    QImage img = buildImage(number);
 
-        if (img.isNull() || !img.save(path, "PNG"))
-        {
-            QMessageBox::warning(
-                this, "Error", "Could not save the barcode to:\n" + path);
-            return;
-        }
+    if (img.isNull() || !img.save(path, "PNG"))
+    {
+        QMessageBox::warning(
+            this, "Error", "Could not save the barcode to:\n" + path);
+        return;
     }
 
     barcodeImage->setPixmap(QPixmap::fromImage(img).scaled(
         img.width() * 3, img.height() * 3,
         Qt::KeepAspectRatio, Qt::FastTransformation));
 
-    if (existed)
-        barcodeDisplay->setText(number + " - already exists");
-    else
-        barcodeDisplay->setText(number + " - saved to barcodes/" + number + ".png");
+    barcodeDisplay->setText(
+        number + (existed ? " - image re-made: barcodes/" : " - image created: barcodes/")
+        + number + ".png");
 }
+
 
 void ManagerWindow::generateAllBarcodes()
 {
@@ -744,6 +774,7 @@ void ManagerWindow::showBarcodes()
     productNumberInput->setFocus();
 }
 
+
 void ManagerWindow::showInventory()
 {
     if (repository == nullptr)
@@ -760,6 +791,52 @@ void ManagerWindow::showInventory()
     syncSidebarSelection();
 }
 
+// Add New Product: form -> Product.txt line -> barcode image
+void ManagerWindow::showAddProduct()
+{
+    if (repository == nullptr)
+    {
+        QMessageBox::information(
+            this, "Add New Product", "Inventory is not connected yet.");
+        syncSidebarSelection();
+        return;
+    }
+
+    AddProductDialog dialog(*repository, this);
+
+    if (dialog.exec() == QDialog::Accepted)
+    {
+        Product p = dialog.createdProduct();
+        QString number = QString::fromStdString(p.getBarcode());
+
+        QDir().mkpath(barcodeFolder());
+        QImage img = buildImage(number);
+
+        if (!img.isNull() && img.save(barcodePath(number), "PNG"))
+        {
+            barcodeImage->setPixmap(QPixmap::fromImage(img).scaled(
+                img.width() * 3, img.height() * 3,
+                Qt::KeepAspectRatio, Qt::FastTransformation));
+            barcodeDisplay->setText(number + " - product added, image saved");
+
+            QMessageBox::information(
+                this, "Add New Product",
+                "Product saved.\nBarcode: " + number +
+                "\nImage: barcodes/" + number + ".png");
+        }
+        else
+        {
+            QMessageBox::warning(
+                this, "Add New Product",
+                "The product was saved, but the barcode image could not be created.\n"
+                "Use Regenerate Barcode to try again.");
+        }
+    }
+
+    syncSidebarSelection();
+}
+
+// Scan dialog -> product dialog
 void ManagerWindow::showProductScan()
 {
     if (repository == nullptr)
