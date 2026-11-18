@@ -4,7 +4,6 @@
 #include "addproductdialog.h"
 #include "../models/product.h"
 
-// Team's shared settings and Member 1's encoder
 #include "../shared.h"
 #include "../barcode/encoder.h"
 
@@ -357,9 +356,8 @@ void ManagerWindow::setupUI()
     createMainContent();
 }
 
-// ---------------------------------------------------------
+
 // Sidebar
-// ---------------------------------------------------------
 
 void ManagerWindow::createSidebar()
 {
@@ -654,6 +652,19 @@ void ManagerWindow::generateBarcode()
             "Please enter exactly 6 digits.\nThe first digit cannot be zero.");
         return;
     }
+    
+    if (repository != nullptr)
+   {
+    repository->load();
+    Product existing;
+      if (!repository->findByBarcode(number.toStdString(), existing)){
+      
+        QMessageBox::warning(this, "Generate Barcode",
+            "No product has the barcode " + number + ".\nUse Add New Product first.");
+        return;
+      }
+    }
+
 
     if (repository == nullptr)
     {
