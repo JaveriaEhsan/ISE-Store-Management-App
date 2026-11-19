@@ -4,7 +4,7 @@
 #include <QWidget>
 #include <string>
 #include <opencv2/videoio.hpp>
-#include "camera/barcodescanner.h"    
+#include "camera/barcodescanner.h"      // fix the folder if different
 
 class QLabel;
 class QTimer;
@@ -37,11 +37,6 @@ private:
     std::string lastNumber;
     int sameCount = 0;
     int missCount = 0;
-    int warmup = 0;         // frames to ignore after opening the camera
-    int blackCount = 0;     // black frames in a row
-    int reopenCount = 0;    // how many times we reopened the camera
-
-    bool openCamera();      // opens the camera with the next driver
 };
 
 #endif

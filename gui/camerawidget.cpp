@@ -5,7 +5,6 @@
 #include <QImage>
 #include <QPixmap>
 #include <opencv2/imgproc.hpp>
-#include <opencv2/core.hpp>
 
 using namespace std;
 
@@ -16,7 +15,7 @@ CameraWidget::CameraWidget(QWidget* parent) : QWidget(parent)
     view->setMinimumSize(480, 360);
     view->setStyleSheet("background: black; color: white;");
     view->setText("Camera is off");
-    view->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+    view->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);  // do not grow with the picture
 
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -31,35 +30,11 @@ CameraWidget::~CameraWidget()
     stop();
 }
 
-// Opens the camera. Each call uses the next driver: DirectShow, Media Foundation, default.
-bool CameraWidget::openCamera()
-{
-    static const int backends[] = { cv::CAP_DSHOW, cv::CAP_MSMF, cv::CAP_ANY };
-
-    if (cap.isOpened()) cap.release();
-
-    bool opened = cap.open(0, backends[reopenCount % 3]);
-    if (opened)
-    {
-        cap.set(cv::CAP_PROP_FRAME_WIDTH, 640);
-        cap.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
-    }
-    return opened;
-}
-
 bool CameraWidget::start()
 {
     if (timer->isActive()) return true;
 
-    // try each driver until one opens
-    bool opened = false;
-    for (reopenCount = 0; reopenCount < 3 && !opened; reopenCount++)
-    {
-        opened = openCamera();
-    }
-    reopenCount--;                       // keep the index of the driver that worked
-
-    if (!opened)
+    if (!cap.open(0, cv::CAP_DSHOW))          // first camera, Windows driver
     {
         view->setText("Could not open the camera");
         emit cameraError("Could not open the camera. Close other apps that use it.");
@@ -69,10 +44,7 @@ bool CameraWidget::start()
     lastNumber.clear();
     sameCount = 0;
     missCount = 0;
-    blackCount = 0;
-    warmup = 15;                         // ignore the first 15 frames
-    view->setText("Starting camera...");
-    timer->start(30);                    // about 30 frames per second
+    timer->start(30);                         // about 30 frames per second
     return true;
 }
 
@@ -93,34 +65,6 @@ void CameraWidget::onTick()
         return;
     }
 
-    // let the camera warm up
-    if (warmup > 0)
-    {
-        warmup--;
-        return;
-    }
-
-    // black picture: the camera is open but gives no real image. Reopen it.
-    if (cv::mean(frame)[0] < 3)
-    {
-        if (++blackCount >= 30)                 // about 1 second of black
-        {
-            blackCount = 0;
-            if (++reopenCount >= 7)             // give up after a few tries
-            {
-                stop();
-                view->setText("The camera gives a black picture");
-                emit cameraError("The camera gives a black picture. Close other apps that use it, then reopen this window.");
-                return;
-            }
-            view->setText("Restarting camera...");
-            openCamera();                       // releases, then opens with the next driver
-            warmup = 15;
-        }
-        return;
-    }
-    blackCount = 0;
-
     // try to read a barcode from this frame
     string number;
     cv::Rect box;
@@ -133,7 +77,7 @@ void CameraWidget::onTick()
         else { lastNumber = number; sameCount = 1; }
         cv::rectangle(frame, box, cv::Scalar(0, 200, 0), 3);    // green box
     }
-    else if (++missCount > 10)
+    else if (++missCount > 10)     // tolerate a few bad frames, then start over
     {
         lastNumber.clear();
         sameCount = 0;
@@ -146,6 +90,7 @@ void CameraWidget::onTick()
     view->setPixmap(QPixmap::fromImage(image.copy())
                         .scaled(view->size(), Qt::KeepAspectRatio, Qt::FastTransformation));
 
+    // confirmed: same number 3 times in a row
     if (sameCount >= 3)
     {
         QString code = QString::fromStdString(lastNumber);
