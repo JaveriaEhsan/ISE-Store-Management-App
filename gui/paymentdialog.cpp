@@ -28,7 +28,8 @@ PaymentDialog::PaymentDialog(const std::string& customerName,
     statusBox = new QComboBox(this);
     statusBox->addItem(QString::fromStdString(STATUS_PAID));
     statusBox->addItem(QString::fromStdString(STATUS_ON_HOLD));
-
+    statusBox->addItem(QString::fromStdString(STATUS_IN_PROGRESS));
+    statusBox->addItem(QString::fromStdString(STATUS_ARCHIVED));
     QFormLayout* form = new QFormLayout();
     form->addRow("Customer:", new QLabel(QString::fromStdString(customerName), this));
     form->addRow("Contact:", new QLabel(
