@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QLabel>
 #include "data/IProductRepository.h"
 #include "data/OrderRepository.h"
 #include "data/OrderDetailRepository.h"
@@ -15,13 +16,16 @@ public:
     MainWindow(IProductRepository& products, OrderRepository& orders,
                OrderDetailRepository& orderDetails, BillRepository& bills,
                QWidget* parent = nullptr);
-
+    
+    void refreshStats();
 private:
-    // references: the window uses the objects that main.cpp created
     IProductRepository& products;
     OrderRepository& orders;
     OrderDetailRepository& orderDetails;
     BillRepository& bills;
+    
+    QLabel* totalValue = nullptr;
+    QLabel* lowValue = nullptr;
 };
 
 #endif
