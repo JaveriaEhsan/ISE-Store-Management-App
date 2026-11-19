@@ -44,13 +44,13 @@ compile_commands.json
 *.idb
 *.log
 
-# ===== Generated barcode images =====
-# Barcodes made by the program are saved in barcodes/ (created at run time, not stored in Git).
-barcodes/
+# Ignore stray test images (a.png, camera_capture.png, ...) anywhere in the project,
 *.png
 *.bmp
 *.jpg
 *.jpeg
+!barcodes/
+!barcodes/*.png
 
 # ===== Operating system junk =====
 .DS_Store
