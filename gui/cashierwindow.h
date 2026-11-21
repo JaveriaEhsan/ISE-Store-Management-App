@@ -3,6 +3,8 @@
 
 #include <QWidget>
 #include <QEvent>
+#include <QTableWidgetItem>
+#include <QDoubleSpinBox>
 #include <string>
 #include "data/IProductRepository.h"
 #include "data/OrderRepository.h"
@@ -30,16 +32,20 @@ private slots:
     void onDescription();
     void onRemoveItem();
     void onGenerateBill();
+    void onHoldOrder();
+    void onResumeOrder();
     void onCancelOrder();
     void onBack();
 
 private:
     void refreshTable();
+    void showTotals();
     void resetScreen();
     void showNotFound(const std::string& barcode);
     bool isValidName(const QString& name) const;
-    bool isValidContact(const QString& contact) const;
-
+    bool isValidContact(const QString& customerContact) const;
+    bool readCustomer(std::string& name, std::string& contact);  // validates both
+    void onQuantitySpin(const std::string& barcode, double value, QDoubleSpinBox* spin);
     bool askBarcode(std::string& barcode);
     void showProduct(const Product& p);
 
