@@ -86,9 +86,45 @@ bool OrderService::removeItem(const string& barcode)
     return false;
 }
 
+bool OrderService::setQuantity(const Product& p, double quantity, string& error)
+{
+    error = "";
+
+    if (quantity <= 0)
+    {
+        error = "Quantity must be greater than 0.";
+        return false;
+    }
+    if (p.getUnit() == "count" && quantity != (long long)quantity)
+    {
+        error = "This product is sold by count, so use a whole number.";
+        return false;
+    }
+    if (!p.hasStock(quantity))   // equal to the stock is allowed
+    {
+        ostringstream msg;
+        msg << "Not enough stock. Available: " << p.getQuantity();
+        error = msg.str();
+        return false;
+    }
+
+    for (size_t i = 0; i < cart.size(); i++)
+    {
+        if (cart[i].barcode == p.getBarcode())
+        {
+            cart[i].quantity = quantity;
+            return true;
+        }
+    }
+
+    error = "This product is not in the order.";
+    return false;
+}
+
 void OrderService::clear()
 {
     cart.clear();
+    resumedOrderId.clear();
 }
 
 const vector<BillItem>& OrderService::getItems() const
@@ -122,7 +158,7 @@ bool OrderService::checkout(const CheckoutInfo& info,
 {
     error = "";
 
-    
+
     if (cart.empty())
     {
         error = "The order is empty.";
@@ -230,10 +266,16 @@ bool OrderService::checkout(const CheckoutInfo& info,
         return false;
     }
 
+    if (!resumedOrderId.empty())          // this order came from a held order
+    {
+        orders.removeById(resumedOrderId);
+        orderDetails.removeByOrderId(resumedOrderId);
+    }
+
     // the files are saved, so this order is finished 
     vector<BillItem> sold = cart;
     result = r;
-    cart.clear();
+    clear();
 
     //  reduce stock (only when the order is paid)
     if (info.status == STATUS_PAID)
@@ -244,7 +286,7 @@ bool OrderService::checkout(const CheckoutInfo& info,
             found[i].reduceStock(sold[i].quantity);
             if (!products.update(found[i]))
             {
-                failed += " " + sold[i].acronym;   
+                failed += " " + sold[i].acronym;
             }
         }
         if (!failed.empty())
@@ -254,5 +296,79 @@ bool OrderService::checkout(const CheckoutInfo& info,
         }
     }
 
+    return true;
+}
+
+bool OrderService::holdOrder(const string& name, const string& contact,
+    OrderRepository& orders, OrderDetailRepository& details,
+    string& orderId, string& error)
+{
+    if (cart.empty()) { error = "The order is empty."; return false; }
+
+    time_t now = time(nullptr);
+    tm* lt = localtime(&now);
+    char date[20], clock[20];
+    strftime(date, sizeof(date), "%Y-%m-%d", lt);
+    strftime(clock, sizeof(clock), "%H:%M", lt);
+
+    IdGenerator ids;
+    orderId = ids.nextOrderId();
+
+    Order o;
+    o.orderId = orderId;
+    o.date = currentDate();
+    o.time = currentTime();
+    
+    o.customerName = name;
+    o.customerContact = contact.empty() ? "-" : contact;
+    o.status = STATUS_ON_HOLD;
+    o.paymentAmount = getTotals().totalPayable;
+    o.paymentMode = "-";
+    o.merchant = "-";
+
+    if (!orders.save(o)) { error = "Could not save the order."; return false; }
+
+    for (const BillItem& it : cart)
+    {
+        OrderDetail d;
+        d.orderId = orderId;
+        d.productId = it.productId;
+        d.barcode = it.barcode;
+        d.quantity = it.quantity;
+        if (!details.save(d)) { error = "Could not save the order items."; return false; }
+    }
+
+    // this order was resumed earlier: the new record replaces the old one
+    if (!resumedOrderId.empty())
+    {
+        orders.removeById(resumedOrderId);
+        details.removeByOrderId(resumedOrderId);
+    }
+
+    clear();
+    return true;
+}
+
+bool OrderService::resumeOrder(const string& orderId, IProductRepository& products,
+    OrderDetailRepository& details, string& error)
+{
+    clear();
+    error.clear();
+
+    for (const OrderDetail& d : details.findByOrderId(orderId))
+    {
+        Product p;
+        if (!products.findByBarcode(d.barcode, p))
+        {
+            error += d.barcode + ": product no longer exists\n";
+            continue;
+        }
+        string why;
+        if (!addItem(p, d.quantity, why))
+            error += p.getAcronym() + ": " + why + "\n";
+    }
+
+    if (cart.empty()) return false;
+    resumedOrderId = orderId;                      // set AFTER clear()
     return true;
 }
