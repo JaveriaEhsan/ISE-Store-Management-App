@@ -3,14 +3,13 @@
 
 #include <string>
 #include <vector>
-using namespace std;
 
 // One line of the current order
 struct BillItem
 {
-    string productId;
-    string barcode;
-    string acronym;
+    std::string productId;
+    std::string barcode;
+    std::string acronym;
     double unitPrice = 0;         // without tax
     double taxPerUnit = 0;
     double discountPerUnit = 0;
@@ -28,7 +27,7 @@ struct BillTotals
 class BillCalculator
 {
 public:
-    BillTotals calculate(const vector<BillItem>& items) const;
+    BillTotals calculate(const std::vector<BillItem>& items) const;
 };
 
 #endif

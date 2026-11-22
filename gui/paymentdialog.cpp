@@ -8,8 +8,10 @@
 #include <QMessageBox>
 #include <QVBoxLayout>
 
-PaymentDialog::PaymentDialog(const std::string& customerName,
-    const std::string& customerContact,
+using namespace std;
+
+PaymentDialog::PaymentDialog(const string& customerName,
+    const string& customerContact,
     QWidget* parent)
     : QDialog(parent),
     customerName(customerName),

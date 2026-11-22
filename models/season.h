@@ -5,8 +5,8 @@
 
 struct Season
 {
-    std::string startDate;       // dd-MM-yyyy
-    std::string endDate;         // dd-MM-yyyy
+    std::string startDate;       // yyyy-dd-MM
+    std::string endDate;         // yyyy-dd-MM
     double discountPercent = 0;  // the percentage, for example 10
     bool isActive = false;
 };

@@ -3,6 +3,8 @@
 #include <sstream>
 #include <ctime>
 
+using namespace std;
+
 static string currentDate()
 {
     time_t now = time(nullptr);

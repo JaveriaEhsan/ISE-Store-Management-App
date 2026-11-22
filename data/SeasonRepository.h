@@ -7,14 +7,14 @@
 class SeasonRepository : public ISeasonRepository
 {
 private:
-    vector<Season> seasons;     // the seasons we read from the file
+    std::vector<Season> seasons;     // the seasons we read from the file
 
     bool saveAll() const;       // writes the whole file again
 
 public:
     void load() override;
-    vector<Season> getAll() const override;
-    bool add(const Season& season, string& error) override;
+    std::vector<Season> getAll() const override;
+    bool add(const Season& season, std::string& error) override;
     bool setActive(int index, bool active) override;
 };
 

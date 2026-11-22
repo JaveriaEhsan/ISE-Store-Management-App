@@ -32,8 +32,8 @@
 #include <QPolygonF>
 #include <QtMath>
 
-namespace
-{
+using namespace std;
+
 // 6 digits, first digit not zero
 bool validNumber(const QString &number)
 {
@@ -70,10 +70,8 @@ QString barcodePath(const QString &number)
 {
     return QDir(barcodeFolder()).filePath(number + ".png");
 }
-}
 
-namespace
-{
+
 enum IconType { IconDashboard, IconBarcode, IconCube, IconScan, IconBasket };
 
 QPixmap makeIcon(IconType type, const QColor &color, int size)
@@ -253,7 +251,6 @@ QString panelStyle()
 QString pageHeadingStyle()
 {
     return "font-size: 32px; color: #101A35; font-weight: bold;";
-}
 }
 
 ManagerWindow::ManagerWindow(QWidget *parent)

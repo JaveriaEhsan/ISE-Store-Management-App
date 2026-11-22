@@ -1,18 +1,17 @@
 #ifndef SHARED_H
 #define SHARED_H
-using namespace std;
 #include <string>
 
 // ===== Shared settings for the whole project =====
 
 // Code table: digits (0-9) -> 7-bit pattern (1 = black, 0 = white)
-const string Code_Table[10] = {
+const std::string Code_Table[10] = {
     "0001101", "0011001", "0010011", "0111101", "0100011",
     "0110001", "0101111", "0111011", "0110111", "0001011"
 };
 
 // Start and end marker
-const string Marker = "101";
+const std::string Marker = "101";
 
 // Image settings
 const int Bar_Width    = 3;    // pixels per bit
