@@ -4,7 +4,6 @@
 #include <string>
 using namespace std;
 
-// Allowed values, so nobody mistypes them
 const string STATUS_IN_PROGRESS = "in-progress";
 const string STATUS_ON_HOLD     = "on-hold";
 const string STATUS_PAID        = "paid";
@@ -18,8 +17,8 @@ const string PAY_WALLET = "wallet";
 struct Order
 {
     string orderId;              // 8 digits, the last two are the day of the order
-    string date;
-    string time;
+    string date;                 // dd-MM-yyyy
+    string time;                 // HH:mm
     string customerName;         // spaces are written as _ in the file
     string customerContact;      // optional, written as - when empty
     string status;               // one of the STATUS_ values
