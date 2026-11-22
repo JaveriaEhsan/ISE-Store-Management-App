@@ -3,6 +3,8 @@
 #include <cctype>
 #include <fstream>
 #include <sstream>
+#include <string>
+#include <vector>
 using namespace std;
 CategoryRepository::CategoryRepository(const string& path) : filePath(path){}
 
