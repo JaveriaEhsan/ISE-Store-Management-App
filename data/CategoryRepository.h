@@ -12,8 +12,8 @@ private:
     string filePath;   // path of PCategory.txt
     // Checks id (2 digits), name and acronym. Fills error if invalid.
     bool validate(const Category& category, string& error) const;
-    // Overwrites the whole file with the given categories
-    void saveAll(const vector<Category>& all);
+    // Overwrites the whole file with the given categories. Returns false if it cannot be written.
+    bool saveAll(const std::vector<Category>& all);
 public:
     explicit CategoryRepository(const string& filePath);
 

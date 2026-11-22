@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 using namespace std;
+
 CategoryRepository::CategoryRepository(const string& path) : filePath(path){}
 
 // Reads every line of PCategory.txt and returns the valid ones
@@ -58,7 +59,47 @@ static void spacesToUnderscores(Category& c)
     replace(c.acronym.begin(), c.acronym.end(), ' ', '_');
 }
 
-// Rules: id is exactly 2 digits, name and acronym are not empty
+// Case-insensitive comparison, so "Dairy" and "DAIRY" count as the same
+static bool sameText(const string& a, const string& b)
+{
+    if (a.size() != b.size())
+    {
+        return false;
+    }
+    for (size_t i = 0; i < a.size(); i++)
+    {
+        if (tolower(static_cast<unsigned char>(a[i])) != tolower(static_cast<unsigned char>(b[i])))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Checks that no OTHER category already uses this name or acronym
+static bool nameOrAcronymTaken(const vector<Category>& all, const Category& c, string& error)
+{
+    for (const Category& existing : all)
+    {
+        if (existing.categoryId == c.categoryId)
+        {
+            continue;   // the category itself (needed for update)
+        }
+        if (sameText(existing.name, c.name))
+        {
+            error = "Another category already has this name.";
+            return true;
+        }
+        if (sameText(existing.acronym, c.acronym))
+        {
+            error = "Another category already has this acronym.";
+            return true;
+        }
+    }
+    return false;
+}
+
+// Rules: id is 2 digits and does not start with 0, name and acronym are not empty and have no '#'
 bool CategoryRepository::validate(const Category& category, string& error) const
 {
     bool twoDigits = category.categoryId.size() == 2 &&
@@ -68,6 +109,12 @@ bool CategoryRepository::validate(const Category& category, string& error) const
     if (!twoDigits)
     {
         error = "Category id must be exactly 2 digits.";
+        return false;
+    }
+    // The id is the start of the barcode, and barcodes cannot start with 0
+    if (category.categoryId[0] == '0')
+    {
+        error = "Category id cannot start with 0.";
         return false;
     }
     if (category.name.empty())
@@ -80,20 +127,30 @@ bool CategoryRepository::validate(const Category& category, string& error) const
         error = "Acronym is required.";
         return false;
     }
+    // '#' ends a line in the file, so it cannot be part of a name
+    if (category.name.find('#') != string::npos ||
+        category.acronym.find('#') != string::npos)
+    {
+        error = "Name and acronym cannot contain #.";
+        return false;
+    }
     return true;
 }
 
-// Rewrites PCategory.txt from scratch, one line per category
-void CategoryRepository::saveAll(const vector<Category>& all)
+// Rewrites PCategory.txt from scratch, one line per category.
+// Returns false if the file could not be written.
+bool CategoryRepository::saveAll(const vector<Category>& all)
 {
     ofstream file(filePath, ios::trunc);
     for (const Category& c : all)
     {
         file << c.categoryId << " " << c.name << " " << c.acronym << "#\n";
     }
+    return file.good();
 }
 
-// Adds a new category. Fails if invalid or the id already exists.
+// Adds a new category. Fails if invalid, the id/name/acronym already exists,
+// or the file cannot be written.
 bool CategoryRepository::add(const Category& category, string& error)
 {
     Category c = category;
@@ -112,9 +169,17 @@ bool CategoryRepository::add(const Category& category, string& error)
             return false;
         }
     }
+    if (nameOrAcronymTaken(all, c, error))
+    {
+        return false;
+    }
 
     all.push_back(c);
-    saveAll(all);
+    if (!saveAll(all))
+    {
+        error = "Could not write to the category file.";
+        return false;
+    }
     return true;
 }
 
@@ -129,12 +194,21 @@ bool CategoryRepository::update(const Category& category, string& error)
     }
 
     vector<Category> all = getAll();
+    if (nameOrAcronymTaken(all, c, error))
+    {
+        return false;
+    }
+
     for (Category& existing : all)
     {
         if (existing.categoryId == c.categoryId)
         {
             existing = c;
-            saveAll(all);
+            if (!saveAll(all))
+            {
+                error = "Could not write to the category file.";
+                return false;
+            }
             return true;
         }
     }
