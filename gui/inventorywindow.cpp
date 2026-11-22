@@ -8,6 +8,9 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QAbstractItemView>
+#include<vector>
+#include<string>
+using namespace std;
 
 using namespace std;
 

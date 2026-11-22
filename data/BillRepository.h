@@ -1,12 +1,15 @@
-#ifndef BILLREPOSITORY_H   
+#ifndef BILLREPOSITORY_H
 #define BILLREPOSITORY_H
 
-#include "../models/bill.h"   // gives the Bill struct
+#include "../models/bill.h"
 
+// Writes Bill.txt (one line for each whole bill)
 class BillRepository
 {
 public:
-    bool save(const Bill& bill);   // writes one row per product on the bill
+    // Add one line at the end of Bill.txt.
+    // Returns false if the bill id is empty or already used.
+    bool save(const Bill& bill);
 };
 
 #endif
