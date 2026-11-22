@@ -1,7 +1,8 @@
 #include "ProductRepository.h"
 #include <fstream>
 #include <sstream>
-
+#include<string>
+using namespace std;
 // Converts text to a number. Returns false if the text is not a clean number.
 static bool toNumber(const string& text, double& value)
 {

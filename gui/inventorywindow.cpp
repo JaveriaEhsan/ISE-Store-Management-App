@@ -8,6 +8,9 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QAbstractItemView>
+#include<vector>
+#include<string>
+using namespace std;
 
 InventoryWindow::InventoryWindow(IProductRepository* repository, QWidget* parent)
     : QDialog(parent)

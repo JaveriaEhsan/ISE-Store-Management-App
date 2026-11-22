@@ -1,8 +1,9 @@
 #ifndef PRODUCTREPOSITORY_H
 #define PRODUCTREPOSITORY_H
-
+#include<string>
 #include <vector>
 #include "IProductRepository.h"
+using namespace std;
 
 class ProductRepository : public IProductRepository
 {
