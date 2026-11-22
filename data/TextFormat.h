@@ -2,9 +2,8 @@
 #define TEXTFORMAT_H
 
 #include <string>
-using namespace std;
 
-string fixText(string text);   // empty -> "-", space -> "_"
-string toText(double value);   // 450.5 -> "450.50"
+std::string fixText(std::string text);   // empty -> "-", space -> "_"
+std::string toText(double value);   // 450.5 -> "450.50"
 
 #endif

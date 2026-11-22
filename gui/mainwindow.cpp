@@ -12,6 +12,8 @@
 #include <QFrame>
 #include <vector>
 
+using namespace std;
+
 // Small helper: a compact "card" with a number and a caption beside it
 static QFrame* makeStatCard(QLabel*& valueLabel, const QString& caption, QWidget* parent)
 {

@@ -1,4 +1,5 @@
 #include "BillCalculator.h"
+using namespace std;
 
 BillTotals BillCalculator::calculate(const vector<BillItem>& items) const
 {

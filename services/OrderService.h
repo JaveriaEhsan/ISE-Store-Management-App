@@ -15,17 +15,17 @@
 
 struct CheckoutInfo
 {
-    string customerName;
-    string customerContact;            // empty if not given
-    string paymentMode;                // PAY_CASH, PAY_CARD or PAY_WALLET
-    string merchant;                   // for example ABL; empty for cash
-    string status = STATUS_PAID;
+    std::string customerName;
+    std::string customerContact;            // empty if not given
+    std::string paymentMode;                // PAY_CASH, PAY_CARD or PAY_WALLET
+    std::string merchant;                   // for example ABL; empty for cash
+    std::string status = STATUS_PAID;
 };
 
 struct CheckoutResult
 {
     Order order;
-    vector<OrderDetail> details;
+    std::vector<OrderDetail> details;
     Bill bill;
     BillTotals totals;
 };
@@ -33,17 +33,17 @@ struct CheckoutResult
 class OrderService
 {
 private:
-    vector<BillItem> cart;
+    std::vector<BillItem> cart;
     BillCalculator calculator;
     std::string resumedOrderId;     // the held order that is being completed, "" if none
 
 public:
-    bool addItem(const Product& product, double quantity, string& error);
-    bool removeItem(const string& barcode);
-    bool setQuantity(const Product& p, double quantity, string& error);
+    bool addItem(const Product& product, double quantity, std::string& error);
+    bool removeItem(const std::string& barcode);
+    bool setQuantity(const Product& p, double quantity, std::string& error);
     void clear();
 
-    const vector<BillItem>& getItems() const;
+    const std::vector<BillItem>& getItems() const;
     BillTotals getTotals() const;
 
 
@@ -53,10 +53,10 @@ public:
         OrderDetailRepository& orderDetails,
         BillRepository& bills,
         CheckoutResult& result,
-        string& error);
+        std::string& error);
 
-    static bool isValidStatus(const string& status);
-    static bool isValidPaymentMode(const string& mode);
+    static bool isValidStatus(const std::string& status);
+    static bool isValidPaymentMode(const std::string& mode);
     // Saves the cart as an on-hold order. Stock does not change. Clears the cart.
     bool holdOrder(const std::string& name, const std::string& contact,
         OrderRepository& orders, OrderDetailRepository& details,

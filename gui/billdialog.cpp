@@ -1,5 +1,8 @@
 #include "billdialog.h"
 
+#include <string>
+#include <vector>
+
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QHeaderView>
@@ -8,7 +11,9 @@
 #include <QTableWidget>
 #include <QVBoxLayout>
 
-static QString text(const std::string& s)
+using namespace std;
+
+static QString text(const string& s)
 {
     return s.empty() ? QString("-") : QString::fromStdString(s);
 }

@@ -12,6 +12,8 @@
 #include<string>
 using namespace std;
 
+using namespace std;
+
 InventoryWindow::InventoryWindow(IProductRepository* repository, QWidget* parent)
     : QDialog(parent)
 {

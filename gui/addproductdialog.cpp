@@ -10,6 +10,8 @@
 #include <QRegularExpression>
 #include <QRegularExpressionValidator>
 
+using namespace std;
+
 AddProductDialog::AddProductDialog(IProductRepository& products, QWidget* parent)
     : QDialog(parent), products(products)
 {
