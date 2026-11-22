@@ -1,0 +1,9 @@
+10 Dairy DAIRY#
+20 Bakery BAKERY#
+30 Grocery GROC#
+40 Beverages BEV#
+50 Fruits FRUIT#
+51 Vegetables VEG#
+60 Meat MEAT#
+70 Household HOME#
+80 Snacks SNACK#
