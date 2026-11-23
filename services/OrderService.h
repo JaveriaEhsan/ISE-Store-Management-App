@@ -67,7 +67,8 @@ public:
 
     const std::vector<BillItem>& getItems() const;
     BillTotals getTotals() const;
-
+    // The totals the customer will really pay, with both discounts (use this on screen)
+    BillTotals getTotals(double seasonalPercent, double specialPercent = 0) const;
     // Highest percentage of the seasons that are active today (0 if none).
     // When ISeasonRepository gets findActiveSeason, this body becomes one call.
     double currentSeasonalPercent(const ISeasonRepository& seasons) const;

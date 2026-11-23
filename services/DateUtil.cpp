@@ -1,16 +1,37 @@
 #include "DateUtil.h"
 #include <cmath>
+#include <cstdio>
 #include <ctime>
 
 using namespace std;
+
+// ONE switch for the format the project writes.
+// true  = yyyy-MM-dd (2026-11-21)     false = dd-MM-yyyy (21-11-2026)
+static const bool WRITE_ISO_DATES = true;
+
+static bool allDigits(const string& s)
+{
+    if (s.empty()) return false;
+    for (size_t i = 0; i < s.size(); i++)
+    {
+        if (s[i] < '0' || s[i] > '9') return false;
+    }
+    return true;
+}
+
+string makeDate(int day, int month, int year)
+{
+    char buffer[16];
+    if (WRITE_ISO_DATES) snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d", year, month, day);
+    else                 snprintf(buffer, sizeof(buffer), "%02d-%02d-%04d", day, month, year);
+    return buffer;
+}
 
 string todayDate()
 {
     time_t now = time(nullptr);
     tm* t = localtime(&now);
-    char buffer[16];
-    strftime(buffer, sizeof(buffer), "%d-%m-%Y", t);
-    return buffer;
+    return makeDate(t->tm_mday, t->tm_mon + 1, t->tm_year + 1900);
 }
 
 string nowTime()
@@ -22,27 +43,40 @@ string nowTime()
     return buffer;
 }
 
-string dateKey(const string& date)
-{
-    if (date.size() != 10 || date[2] != '-' || date[5] != '-') return "";
-
-    string key = date.substr(6, 4) + date.substr(3, 2) + date.substr(0, 2);
-    for (size_t i = 0; i < key.size(); i++)
-    {
-        if (key[i] < '0' || key[i] > '9') return "";
-    }
-    return key;
-}
-
 bool parseDate(const string& date, int& day, int& month, int& year)
 {
-    string key = dateKey(date);
-    if (key.empty()) return false;
+    if (date.size() != 10) return false;
 
-    year = stoi(key.substr(0, 4));
-    month = stoi(key.substr(4, 2));
-    day = stoi(key.substr(6, 2));
+    string d, m, y;
+    if (date[4] == '-' && date[7] == '-')          // yyyy-MM-dd
+    {
+        y = date.substr(0, 4); m = date.substr(5, 2); d = date.substr(8, 2);
+    }
+    else if (date[2] == '-' && date[5] == '-')     // dd-MM-yyyy
+    {
+        d = date.substr(0, 2); m = date.substr(3, 2); y = date.substr(6, 4);
+    }
+    else
+    {
+        return false;
+    }
+
+    if (!allDigits(d) || !allDigits(m) || !allDigits(y)) return false;
+
+    year = stoi(y);
+    month = stoi(m);
+    day = stoi(d);
     return month >= 1 && month <= 12 && day >= 1 && day <= 31;
+}
+
+string dateKey(const string& date)
+{
+    int d, m, y;
+    if (!parseDate(date, d, m, y)) return "";
+
+    char buffer[16];
+    snprintf(buffer, sizeof(buffer), "%04d%02d%02d", y, m, d);
+    return buffer;
 }
 
 string addDays(const string& date, int n)
@@ -58,9 +92,7 @@ string addDays(const string& date, int n)
     t.tm_isdst = -1;
     if (mktime(&t) == (time_t)-1) return "";
 
-    char buffer[16];
-    strftime(buffer, sizeof(buffer), "%d-%m-%Y", &t);
-    return buffer;
+    return makeDate(t.tm_mday, t.tm_mon + 1, t.tm_year + 1900);
 }
 
 bool daysBetween(const string& from, const string& to, int& days)

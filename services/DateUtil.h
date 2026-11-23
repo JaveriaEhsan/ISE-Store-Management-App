@@ -3,11 +3,13 @@
 
 #include <string>
 
-// Dates are written dd-MM-yyyy, times HH:mm.
+
+// Reading accepts both yyyy-MM-dd and dd-MM-yyyy.
 std::string todayDate();
 std::string nowTime();
+std::string makeDate(int day, int month, int year);
 
-// "21-11-2026" -> "20261121", so dates can be compared as text. "" if not a date.
+// "20261121" for sorting and comparing. "" if the text is not a date.
 std::string dateKey(const std::string& date);
 
 bool parseDate(const std::string& date, int& day, int& month, int& year);

@@ -24,6 +24,7 @@ struct BillTotals
     double totalDiscount = 0;     // product discounts only
     double seasonalAmount = 0;    // PKR
     double specialAmount = 0;     // PKR
+    double otherAmount = 0;       // discounts of other rules (they have no bill column yet)
     double totalPayable = 0;
 };
 

@@ -30,8 +30,9 @@ BillTotals BillCalculator::calculate(const vector<BillItem>& items,
     for (size_t i = 0; i < rules.size(); i++)
     {
         double a = round2(rules[i]->amount(base));
-        if (rules[i]->name() == "seasonal") t.seasonalAmount += a;
-        else if (rules[i]->name() == "special") t.specialAmount += a;
+        if (rules[i]->name() == DISCOUNT_SEASONAL) t.seasonalAmount += a;
+        else if (rules[i]->name() == DISCOUNT_SPECIAL) t.specialAmount += a;
+        else t.otherAmount += a;
         ruleTotal += a;
     }
 
