@@ -1,6 +1,6 @@
 #include "BillRepository.h"
-#include "TextFormat.h"       
-#include "../config.h"        
+#include "TextFormat.h"
+#include "../config.h"
 
 #include <fstream>
 #include <sstream>
@@ -26,22 +26,39 @@ static bool billExists(const string& billId)
     return false;
 }
 
-// Writes one line for the whole bill (14 fields)
-bool BillRepository::save(const Bill& bill)
+// True if the text is empty or has a space (it would shift the columns)
+static bool badField(const string& text)
 {
-    if (bill.billId.empty())
+    return text.empty() || text.find(' ') != string::npos;
+}
+
+// Writes one line for the whole bill (14 fields)
+bool BillRepository::save(const Bill& bill, string& error)
+{
+    error.clear();
+
+    if (badField(bill.billId))
     {
+        error = "The bill id must not be empty or contain spaces.";
         return false;
     }
 
-    if (billExists(bill.billId))     // same bill id must never be saved twice
+    if (badField(bill.date) || badField(bill.time))
     {
+        error = "The bill date and time must not be empty or contain spaces.";
         return false;
     }
 
-    ofstream file(BILL_FILE, ios::app);   // app = add at the end
+    if (billExists(bill.billId))
+    {
+        error = "A bill with this id already exists.";
+        return false;
+    }
+
+    ofstream file(BILL_FILE, ios::app);
     if (!file.is_open())
     {
+        error = "The bill file could not be opened.";
         return false;
     }
 
@@ -61,5 +78,11 @@ bool BillRepository::save(const Bill& bill)
          << bill.time
          << "#" << "\n";
 
-    return file.good();
+    if (!file.good())
+    {
+        error = "Writing to the bill file failed.";
+        return false;
+    }
+
+    return true;
 }
