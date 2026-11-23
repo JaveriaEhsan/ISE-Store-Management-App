@@ -18,6 +18,16 @@ public:
 
     // Finds one bill by its id. Returns false if not found.
     bool findById(const std::string& billId, Bill& result) const;
+
+    // Every bill of one order (an order can have more than one bill)
+    std::vector<Bill> findByOrderId(const std::string& orderId) const;
+
+    // The bill of this order that is not "edited". Returns false if none.
+    bool findCurrentByOrderId(const std::string& orderId, Bill& result) const;
+
+    // Changes only the status of one bill. Returns false and writes nothing
+    // if the id is missing or the status is not allowed.
+    bool updateStatus(const std::string& billId, const std::string& status);
 };
 
 #endif
