@@ -56,8 +56,10 @@ public:
     // daily = today, weekly = last 7 days, monthly = this month, yearly = this year
     static void periodRange(ReportPeriod period, std::string& from, std::string& to);
 
-    // paid bills with payable amount and discounts (the latest bill of each order)
-    ReportTable allSales() const;
+  
+        // paid bills with payable amount and discounts. Edited bills are left out,
+    // unless includeEdited is true.
+    ReportTable allSales(bool includeEdited = false) const;
 
     ReportTable topSoldItems() const;     // ten most sold, with remaining stock
     ReportTable topStockItems() const;    // ten with the most stock left
