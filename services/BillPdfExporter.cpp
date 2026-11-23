@@ -1,4 +1,4 @@
-#include "billpdfexporter.h"
+#include "BillPdfExporter.h"
 #include <QPdfWriter>
 #include <QPainter>
 #include <QPageSize>
@@ -107,4 +107,24 @@ bool BillPdfExporter::exportBill(const Bill& bill, const std::string& filePath,
 
     p.end();
     return true;
+}
+std::string BillPdfExporter::makeNote(const Bill& bill, const std::vector<Bill>& orderBills)
+{
+    if (bill.status == "edited") {
+        for (const Bill& b : orderBills)
+            if (b.billId != bill.billId && b.status != "edited")
+                return "EDITED - replaced by bill " + b.billId;
+        return "EDITED";
+    }
+
+    std::string older;
+    int count = 0;
+    for (const Bill& b : orderBills) {
+        if (b.billId == bill.billId) continue;
+        if (count > 0) older += ", ";
+        older += b.billId;
+        ++count;
+    }
+    if (count == 0) return "";
+    return std::string("REVISED - replaces bill") + (count > 1 ? "s " : " ") + older;
 }
