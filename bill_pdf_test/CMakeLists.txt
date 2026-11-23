@@ -8,7 +8,7 @@ find_package(Qt6 REQUIRED COMPONENTS Core Gui)
 
 add_executable(test_billpdf
     test_billpdf.cpp
-    ../services/billpdfexporter.cpp
+    ../services/BillPdfExporter.cpp
 )
 target_include_directories(test_billpdf PRIVATE ..)
 target_link_libraries(test_billpdf PRIVATE Qt6::Core Qt6::Gui)
