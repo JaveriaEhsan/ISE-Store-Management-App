@@ -7,6 +7,7 @@ const std::string STATUS_IN_PROGRESS = "in-progress";
 const std::string STATUS_ON_HOLD     = "on-hold";
 const std::string STATUS_PAID        = "paid";
 const std::string STATUS_ARCHIVED    = "archived";
+const std::string STATUS_EDITED      = "edited";    // Only bills use it
 
 const std::string PAY_CASH   = "cash";
 const std::string PAY_CARD   = "card";
