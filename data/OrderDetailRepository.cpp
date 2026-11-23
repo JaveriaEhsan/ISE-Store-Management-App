@@ -27,6 +27,20 @@ static vector<string> splitFields(string line)
     return fields;
 }
 
+// Turns one detail into a file line (same format for save and replaceForOrder)
+static string makeLine(const OrderDetail& d)
+{
+    ostringstream out;
+
+    out << d.orderId << " "
+        << d.productId << " "
+        << d.barcode << " "
+        << toText(d.quantity)
+        << "#";
+
+    return out.str();
+}
+
 // All product lines of one order
 vector<OrderDetail> OrderDetailRepository::findByOrderId(const string& orderId) const
 {
@@ -54,7 +68,7 @@ vector<OrderDetail> OrderDetailRepository::findByOrderId(const string& orderId) 
         }
         catch (...)
         {
-            continue;   
+            continue;
         }
 
         result.push_back(d);
@@ -103,6 +117,49 @@ bool OrderDetailRepository::removeByOrderId(const string& orderId)
     return out.good();
 }
 
+// Swaps all lines of one order for the new ones
+bool OrderDetailRepository::replaceForOrder(const string& orderId,
+                                            const vector<OrderDetail>& details)
+{
+    vector<string> lines;
+
+    // 1. Keep every line that belongs to other orders
+    {
+        ifstream file(ORDER_DETAIL_FILE);
+        string line;
+
+        while (getline(file, line))
+        {
+            if (line.empty() || line.rfind(orderId + " ", 0) == 0)
+            {
+                continue;
+            }
+
+            lines.push_back(line);
+        }
+    }
+
+    // 2. Add the new lines of this order
+    for (const OrderDetail& d : details)
+    {
+        lines.push_back(makeLine(d));
+    }
+
+    // 3. Write everything back in one go
+    ofstream out(ORDER_DETAIL_FILE, ios::trunc);
+    if (!out.is_open())
+    {
+        return false;
+    }
+
+    for (const string& l : lines)
+    {
+        out << l << "\n";
+    }
+
+    return out.good();
+}
+
 // Writes one product line at the end of the file
 bool OrderDetailRepository::save(const OrderDetail& detail)
 {
@@ -112,11 +169,6 @@ bool OrderDetailRepository::save(const OrderDetail& detail)
         return false;
     }
 
-    file << detail.orderId << " "
-         << detail.productId << " "
-         << detail.barcode << " "
-         << toText(detail.quantity)
-         << "#" << "\n";
-
-    return true;
+    file << makeLine(detail) << "\n";
+    return file.good();
 }
