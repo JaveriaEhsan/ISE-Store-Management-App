@@ -86,9 +86,28 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent)
     QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
+    noteLabel = new QLabel(this);
+    QFont noteFont = noteLabel->font();
+    noteFont.setBold(true);
+    noteLabel->setFont(noteFont);
+    noteLabel->hide();
+
     QVBoxLayout* layout = new QVBoxLayout(this);
+    layout->addWidget(noteLabel);
     layout->addLayout(header);
     layout->addWidget(table);
     layout->addLayout(totals);
     layout->addWidget(buttons);
+
+    // a bill made by editing a paid order says which bill it replaces
+    if (!result.replacedBillId.empty())
+    {
+        setNote("REVISED - replaces bill " + QString::fromStdString(result.replacedBillId));
+    }
+}
+
+void BillDialog::setNote(const QString& note)
+{
+    noteLabel->setText(note);
+    noteLabel->setVisible(!note.isEmpty());
 }
