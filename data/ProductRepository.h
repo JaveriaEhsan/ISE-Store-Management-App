@@ -39,6 +39,7 @@ public:
     bool update(const Product& product) override;
     bool add(const Product& product, std::string& error) override;
     std::string nextBarcode() const override;
+    std::string nextBarcode(const std::string& categoryId) const override;
 };
 
 #endif

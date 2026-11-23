@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 using namespace std;
+
 // Converts text to a number. Returns false if the text is not a clean number.
 static bool toNumber(const string& text, double& value)
 {
@@ -441,8 +442,8 @@ bool ProductRepository::add(const Product& product, string& error)
     return true;
 }
 
-// The next free barcode: the biggest barcode in the file plus 1 (the first one is 100000)
-// NOTE: this is replaced in Commit 5 by a version that works per category
+// OLD version: the biggest barcode in the file plus 1 (the first one is 100000).
+// It ignores categories. It is removed once AddProductDialog uses the category version.
 string ProductRepository::nextBarcode() const
 {
     long long biggest = 99999;
@@ -465,4 +466,45 @@ string ProductRepository::nextBarcode() const
         return "";   // there is no free 6-digit barcode left
     }
     return to_string(next);
+}
+
+// Barcode = category id (2 digits) + serial (4 digits, 0001 to 9999).
+// Takes the biggest serial used in this category and adds 1.
+// Returns "" if the category id is invalid or all 9999 serials are used.
+string ProductRepository::nextBarcode(const string& categoryId) const
+{
+    // same rule as the category: exactly 2 digits, not starting with 0
+    if (categoryId.size() != 2 || !isDigits(categoryId) || categoryId[0] == '0')
+    {
+        return "";
+    }
+
+    int biggestSerial = 0;
+    for (size_t i = 0; i < products.size(); i++)
+    {
+        string barcode = products[i].getBarcode();
+        if (barcode.size() != 6 || barcode.substr(0, 2) != categoryId)
+        {
+            continue;   // a barcode of another category
+        }
+        int serial = stoi(barcode.substr(2));   // the barcode is 6 digits, so this is safe
+        if (serial > biggestSerial)
+        {
+            biggestSerial = serial;
+        }
+    }
+
+    int next = biggestSerial + 1;
+    if (next > 9999)
+    {
+        return "";   // this category is full
+    }
+
+    // pad the serial to 4 digits, for example 5 becomes 0005
+    string serial = to_string(next);
+    while (serial.size() < 4)
+    {
+        serial = "0" + serial;
+    }
+    return categoryId + serial;
 }
