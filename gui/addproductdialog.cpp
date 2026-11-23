@@ -32,8 +32,11 @@ AddProductDialog::AddProductDialog(IProductRepository& products,
     setWindowTitle("Add New Product");
     setMinimumWidth(420);
 
-    // Category list: text "10 - Dairy", the id is kept as item data
+    // Category list: only categories that exist in the category file.
+    // Text "10 - Dairy", the id is kept as item data. The box is not editable,
+    // so the manager can only pick one of these and cannot type a new id.
     categoryBox = new QComboBox(this);
+    categoryBox->setEditable(false);
     vector<Category> all = categories.getAll();
     for (size_t i = 0; i < all.size(); i++)
     {
@@ -154,10 +157,20 @@ void AddProductDialog::onSave()
         return;
     }
 
+    // The category list was read when the dialog opened. Check again that the
+    // chosen category still exists, because ProductRepository only checks the format.
+    string categoryId = categoryBox->currentData().toString().toStdString();
+    Category category;
+    if (!categories.findById(categoryId, category))
+    {
+        QMessageBox::warning(this, "Add product",
+            "This category does not exist any more. Close this window and open it again.");
+        return;
+    }
+
     // add() works on the products in memory, so read the file again first,
     // then take the barcode again in case the file changed meanwhile
     products.load();
-    string categoryId = categoryBox->currentData().toString().toStdString();
     string barcode = products.nextBarcode(categoryId);
     if (barcode.empty())
     {
