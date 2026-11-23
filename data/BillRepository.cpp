@@ -1,9 +1,11 @@
 #include "BillRepository.h"
 #include "TextFormat.h"
 #include "../config.h"
+#include "../models/order.h" 
 
 #include <fstream>
 #include <sstream>
+#include <string>
 #include <vector>
 using namespace std;
 
@@ -93,9 +95,11 @@ static bool badField(const string& text)
 // The allowed bill statuses
 static bool validStatus(const string& status)
 {
-    return status == "paid" || status == "edited"
-        || status == "in-progress" || status == "on-hold"
-        || status == "archived";
+    return status == STATUS_PAID
+        || status == STATUS_EDITED
+        || status == STATUS_IN_PROGRESS
+        || status == STATUS_ON_HOLD
+        || status == STATUS_ARCHIVED;
 }
 
 vector<Bill> BillRepository::getAll() const
@@ -155,7 +159,7 @@ bool BillRepository::findCurrentByOrderId(const string& orderId, Bill& result) c
     // the newest one that is not "edited" (the file is in saving order)
     for (size_t i = bills.size(); i > 0; i--)
     {
-        if (bills[i - 1].status != "edited")
+        if (bills[i - 1].status != STATUS_EDITED)
         {
             result = bills[i - 1];
             return true;
