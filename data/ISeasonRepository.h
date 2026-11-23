@@ -21,6 +21,11 @@ public:
 
     // switch a season on or off
     virtual bool setActive(int index, bool active) = 0;
+
+    // Find the season that applies on this date (YYYY-MM-DD).
+    // Only active seasons count. If more than one fits, the highest percent wins.
+    // Returns false if no season fits.
+    virtual bool findActiveSeason(const std::string& date, Season& found) = 0;
 };
 
 #endif 
