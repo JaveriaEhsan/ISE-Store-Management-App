@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include "DiscountRules.h"
 
 // One line of the current order
 struct BillItem
@@ -20,14 +21,22 @@ struct BillTotals
 {
     double totalWithoutTax = 0;
     double totalTax = 0;
-    double totalDiscount = 0;
+    double totalDiscount = 0;     // product discounts only
+    double seasonalAmount = 0;    // PKR
+    double specialAmount = 0;     // PKR
     double totalPayable = 0;
 };
 
 class BillCalculator
 {
 public:
-    BillTotals calculate(const std::vector<BillItem>& items) const;
+    // The rules are optional, so calculate(items) still works
+    BillTotals calculate(const std::vector<BillItem>& items,
+        const std::vector<const IDiscountRule*>& rules
+        = std::vector<const IDiscountRule*>()) const;
+
+    double balance(double received, double payable) const;    // received - payable
+    bool isEnough(double received, double payable) const;     // received >= payable
 };
 
 #endif

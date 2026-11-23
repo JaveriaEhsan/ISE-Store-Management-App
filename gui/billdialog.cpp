@@ -1,13 +1,9 @@
 #include "billdialog.h"
 
-#include <string>
-#include <vector>
-
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QHeaderView>
 #include <QLabel>
-#include <QPushButton>
 #include <QTableWidget>
 #include <QVBoxLayout>
 
@@ -27,11 +23,12 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent)
     : QDialog(parent)
 {
     setWindowTitle("Bill");
-    resize(900, 520);
+    resize(620, 600);
 
     const Order& o = result.order;
     const Bill& b = result.bill;
 
+    // ----- header -----
     QFormLayout* header = new QFormLayout();
     header->addRow("Order id:", new QLabel(text(o.orderId), this));
     header->addRow("Bill id:", new QLabel(text(b.billId), this));
@@ -42,42 +39,39 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent)
     header->addRow("Merchant:", new QLabel(text(o.merchant), this));
     header->addRow("Status:", new QLabel(text(b.status), this));
 
-  
-       // lines table 
-    QTableWidget* table = new QTableWidget((int)b.lines.size(), 8, this);
+    // ----- lines table -----
+    QTableWidget* table = new QTableWidget((int)b.lines.size(), 5, this);
     table->setHorizontalHeaderLabels(
-        { "ID", "Product", "Barcode", "Unit price", "Tax/unit", "Discount", "Quantity", "Total price" });
+        { "Product", "Unit price", "Discount", "Quantity", "Line total" });
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table->setSelectionMode(QAbstractItemView::NoSelection);
     table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    table->verticalHeader()->setVisible(false);
+
     BillCalculator calculator;
     for (size_t i = 0; i < b.lines.size(); i++)
     {
         const BillLine& line = b.lines[i];
 
-        // total= (price - discount + tax) x quantity
+        // the calculator does the maths (line total without tax, after the product discount)
         BillItem item;
         item.unitPrice = line.unitPrice;
-        item.taxPerUnit = line.taxPerUnit;
         item.discountPerUnit = line.discountPerUnit;
         item.quantity = line.quantity;
         BillTotals lineTotals = calculator.calculate(vector<BillItem>(1, item));
 
-        table->setItem((int)i, 0, new QTableWidgetItem(QString::number(i + 1)));   
-        table->setItem((int)i, 1, new QTableWidgetItem(text(line.acronym)));
-        table->setItem((int)i, 2, new QTableWidgetItem(text(line.barcode)));
-        table->setItem((int)i, 3, new QTableWidgetItem(money(line.unitPrice)));
-        table->setItem((int)i, 4, new QTableWidgetItem(money(line.taxPerUnit)));
-        table->setItem((int)i, 5, new QTableWidgetItem(money(line.discountPerUnit)));
-        table->setItem((int)i, 6, new QTableWidgetItem(QString::number(line.quantity, 'g', 10)));
-        table->setItem((int)i, 7, new QTableWidgetItem(money(lineTotals.totalPayable)));
+        table->setItem((int)i, 0, new QTableWidgetItem(text(line.acronym)));
+        table->setItem((int)i, 1, new QTableWidgetItem(money(line.unitPrice)));
+        table->setItem((int)i, 2, new QTableWidgetItem(money(line.discountPerUnit)));
+        table->setItem((int)i, 3, new QTableWidgetItem(QString::number(line.quantity, 'g', 10)));
+        table->setItem((int)i, 4, new QTableWidgetItem(money(lineTotals.totalPayable)));
     }
 
-    //  totals 
+    // ----- totals -----
     QFormLayout* totals = new QFormLayout();
     totals->addRow("Total without tax:", new QLabel(money(b.totalWithoutTax), this));
-    totals->addRow("Total discount:", new QLabel(money(b.totalDiscount), this));
+    totals->addRow("Product discounts:", new QLabel(money(b.totalDiscount), this));
+    totals->addRow("Seasonal discount:", new QLabel(money(b.seasonalDiscount), this));
+    totals->addRow("Special discount:", new QLabel(money(b.specialDiscount), this));
     totals->addRow("Total tax:", new QLabel(money(b.totalTax), this));
 
     QLabel* payable = new QLabel(money(b.totalPayable), this);
@@ -86,12 +80,34 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent)
     payable->setFont(f);
     totals->addRow("Payable:", payable);
 
+    totals->addRow("Amount received:", new QLabel(money(b.amountReceived), this));
+    totals->addRow("Balance returned:", new QLabel(money(b.balanceReturned), this));
+
     QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
+    noteLabel = new QLabel(this);
+    QFont noteFont = noteLabel->font();
+    noteFont.setBold(true);
+    noteLabel->setFont(noteFont);
+    noteLabel->hide();
+
     QVBoxLayout* layout = new QVBoxLayout(this);
+    layout->addWidget(noteLabel);
     layout->addLayout(header);
     layout->addWidget(table);
     layout->addLayout(totals);
     layout->addWidget(buttons);
+
+    // a bill made by editing a paid order says which bill it replaces
+    if (!result.replacedBillId.empty())
+    {
+        setNote("REVISED - replaces bill " + QString::fromStdString(result.replacedBillId));
+    }
+}
+
+void BillDialog::setNote(const QString& note)
+{
+    noteLabel->setText(note);
+    noteLabel->setVisible(!note.isEmpty());
 }

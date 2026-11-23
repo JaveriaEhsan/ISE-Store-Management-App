@@ -5,6 +5,8 @@
 #include <cctype>
 #include <fstream>
 #include <sstream>
+#include <string>
+#include <vector>
 using namespace std;
 
 // True if the text looks like YYYY-MM-DD with a real month and day
@@ -164,4 +166,37 @@ bool SeasonRepository::saveAll() const
     }
 
     return file.good();
+}
+// Find the season that applies on this date (YYYY-MM-DD)
+bool SeasonRepository::findActiveSeason(const string& date, Season& found)
+{
+    if (!validDate(date))
+    {
+        return false;
+    }
+
+    load();   // use what is really in the file
+
+    bool any = false;
+
+    for (const Season& s : seasons)
+    {
+        if (!s.isActive)
+        {
+            continue;                       // switched off
+        }
+
+        if (date < s.startDate || date > s.endDate)
+        {
+            continue;                       // the date is outside this season
+        }
+
+        if (!any || s.discountPercent > found.discountPercent)
+        {
+            found = s;                      // keep the highest percent
+            any = true;
+        }
+    }
+
+    return any;
 }

@@ -7,26 +7,6 @@
 
 using namespace std;
 
-// Removes the last '#' and splits the line into words
-static vector<string> splitFields(string line)
-{
-    if (!line.empty() && line.back() == '#')
-    {
-        line.pop_back();
-    }
-
-    istringstream in(line);
-    vector<string> fields;
-    string word;
-
-    while (in >> word)
-    {
-        fields.push_back(word);
-    }
-
-    return fields;
-}
-
 // Turns one detail into a file line (same format for save and replaceForOrder)
 static string makeLine(const OrderDetail& d)
 {
@@ -50,7 +30,7 @@ vector<OrderDetail> OrderDetailRepository::findByOrderId(const string& orderId) 
 
     while (getline(file, line))
     {
-        vector<string> f = splitFields(line);
+        vector<string> f = splitLine(line);
 
         if (f.size() != 4 || f[0] != orderId)
         {

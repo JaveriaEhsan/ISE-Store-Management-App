@@ -7,30 +7,10 @@
 #include <vector>
 using namespace std;
 
-// Removes the last '#' and splits the line into words
-static vector<string> splitFields(string line)
-{
-    if (!line.empty() && line.back() == '#')
-    {
-        line.pop_back();
-    }
-
-    istringstream in(line);
-    vector<string> fields;
-    string word;
-
-    while (in >> word)
-    {
-        fields.push_back(word);
-    }
-
-    return fields;
-}
-
 // Turns one file line (14 fields) into a Bill. Returns false if the line is bad.
 static bool parseBill(const string& line, Bill& b)
 {
-    vector<string> f = splitFields(line);
+    vector<string> f = splitLine(line);
 
     if (f.size() != 14)
     {
@@ -62,6 +42,30 @@ static bool parseBill(const string& line, Bill& b)
     return true;
 }
 
+// Turns a Bill into one file line (the only place the format is written)
+static string makeLine(const Bill& b)
+{
+    ostringstream out;
+
+    out << b.billId << " "
+        << fixText(b.customerName) << " "
+        << b.orderId << " "
+        << toText(b.totalWithoutTax) << " "
+        << toText(b.totalTax) << " "
+        << toText(b.totalDiscount) << " "      // product discounts
+        << toText(b.totalPayable) << " "
+        << toText(b.amountReceived) << " "
+        << toText(b.balanceReturned) << " "
+        << b.status << " "
+        << toText(b.seasonalDiscount) << " "   // PKR amount
+        << toText(b.specialDiscount) << " "    // PKR amount
+        << b.date << " "
+        << b.time
+        << "#";
+
+    return out.str();
+}
+
 // True if a bill with this id is already in Bill.txt
 static bool billExists(const string& billId)
 {
@@ -70,11 +74,9 @@ static bool billExists(const string& billId)
 
     while (getline(in, line))
     {
-        istringstream words(line);
-        string firstWord;
-        words >> firstWord;          // the bill id is the first field
+        vector<string> f = splitLine(line);
 
-        if (firstWord == billId)
+        if (!f.empty() && f[0] == billId)
         {
             return true;
         }
@@ -86,6 +88,14 @@ static bool billExists(const string& billId)
 static bool badField(const string& text)
 {
     return text.empty() || text.find(' ') != string::npos;
+}
+
+// The allowed bill statuses
+static bool validStatus(const string& status)
+{
+    return status == "paid" || status == "edited"
+        || status == "in-progress" || status == "on-hold"
+        || status == "archived";
 }
 
 vector<Bill> BillRepository::getAll() const
@@ -122,6 +132,91 @@ bool BillRepository::findById(const string& billId, Bill& result) const
     return false;
 }
 
+vector<Bill> BillRepository::findByOrderId(const string& orderId) const
+{
+    vector<Bill> result;
+    vector<Bill> all = getAll();
+
+    for (const Bill& b : all)
+    {
+        if (b.orderId == orderId)
+        {
+            result.push_back(b);
+        }
+    }
+
+    return result;
+}
+
+bool BillRepository::findCurrentByOrderId(const string& orderId, Bill& result) const
+{
+    vector<Bill> bills = findByOrderId(orderId);
+
+    // the newest one that is not "edited" (the file is in saving order)
+    for (size_t i = bills.size(); i > 0; i--)
+    {
+        if (bills[i - 1].status != "edited")
+        {
+            result = bills[i - 1];
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool BillRepository::updateStatus(const string& billId, const string& status)
+{
+    if (!validStatus(status))
+    {
+        return false;
+    }
+
+    vector<string> lines;
+    bool found = false;
+
+    {
+        ifstream file(BILL_FILE);
+        string line;
+
+        while (getline(file, line))
+        {
+            if (line.empty())
+            {
+                continue;
+            }
+
+            Bill b;
+            if (parseBill(line, b) && b.billId == billId)
+            {
+                b.status = status;
+                line = makeLine(b);
+                found = true;
+            }
+
+            lines.push_back(line);
+        }
+    }
+
+    if (!found)
+    {
+        return false;
+    }
+
+    ofstream out(BILL_FILE, ios::trunc);
+    if (!out.is_open())
+    {
+        return false;
+    }
+
+    for (const string& l : lines)
+    {
+        out << l << "\n";
+    }
+
+    return out.good();
+}
+
 // Writes one line for the whole bill (14 fields)
 bool BillRepository::save(const Bill& bill, string& error)
 {
@@ -139,6 +234,12 @@ bool BillRepository::save(const Bill& bill, string& error)
         return false;
     }
 
+    if (!validStatus(bill.status))
+    {
+        error = "The bill status is not allowed.";
+        return false;
+    }
+
     if (billExists(bill.billId))
     {
         error = "A bill with this id already exists.";
@@ -152,21 +253,7 @@ bool BillRepository::save(const Bill& bill, string& error)
         return false;
     }
 
-    file << bill.billId << " "
-         << fixText(bill.customerName) << " "
-         << bill.orderId << " "
-         << toText(bill.totalWithoutTax) << " "
-         << toText(bill.totalTax) << " "
-         << toText(bill.totalDiscount) << " "      // product discounts
-         << toText(bill.totalPayable) << " "
-         << toText(bill.amountReceived) << " "
-         << toText(bill.balanceReturned) << " "
-         << bill.status << " "
-         << toText(bill.seasonalDiscount) << " "   // PKR amount
-         << toText(bill.specialDiscount) << " "    // PKR amount
-         << bill.date << " "
-         << bill.time
-         << "#" << "\n";
+    file << makeLine(bill) << "\n";
 
     if (!file.good())
     {

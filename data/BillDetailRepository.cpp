@@ -8,30 +8,10 @@
 #include <vector>
 using namespace std;
 
-// Removes the last '#' and splits the line into words
-static vector<string> splitFields(string line)
-{
-    if (!line.empty() && line.back() == '#')
-    {
-        line.pop_back();
-    }
-
-    istringstream in(line);
-    vector<string> fields;
-    string word;
-
-    while (in >> word)
-    {
-        fields.push_back(word);
-    }
-
-    return fields;
-}
-
 // Turns one file line into a BillDetail. Returns false if the line is bad.
 static bool parseLine(const string& line, BillDetail& d)
 {
-    vector<string> f = splitFields(line);
+    vector<string> f = splitLine(line);
 
     if (f.size() != 5)
     {

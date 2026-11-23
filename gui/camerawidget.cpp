@@ -33,8 +33,16 @@ CameraWidget::~CameraWidget()
 bool CameraWidget::start()
 {
     if (timer->isActive()) return true;
-
-    if (!cap.open(0, cv::CAP_DSHOW))          // first camera, Windows driver
+    
+    
+    // first camera, Windows driver
+       // Windows uses the DirectShow driver; macOS and Linux use OpenCV's default
+    #ifdef _WIN32
+    const bool cameraOpened = cap.open(0, cv::CAP_DSHOW);
+    #else
+    const bool cameraOpened = cap.open(0);
+    #endif
+    if (!cameraOpened)
     {
         view->setText("Could not open the camera");
         emit cameraError("Could not open the camera. Close other apps that use it.");
