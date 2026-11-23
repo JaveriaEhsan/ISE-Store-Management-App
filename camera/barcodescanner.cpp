@@ -1,7 +1,6 @@
 #include "barcodescanner.h"
 #include "noisycameradecoder.h"
 
-#include <opencv2/geometry/2d.hpp>
 #include <opencv2/opencv.hpp>
 #include <algorithm>
 #include <string>
