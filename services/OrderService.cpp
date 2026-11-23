@@ -4,7 +4,7 @@
 #include "../config.h"
 #include <sstream>
 #include <cmath>
-#include "BillStatus.h"
+
 
 using namespace std;
 
@@ -137,7 +137,13 @@ BillTotals OrderService::getTotals() const
 {
     return calculator.calculate(cart);
 }
-
+BillTotals OrderService::getTotals(double seasonalPercent, double specialPercent) const
+{
+    CheckoutInfo info;
+    info.seasonalPercent = seasonalPercent;
+    info.specialPercent = specialPercent;
+    return totalsFor(info);
+}
 bool OrderService::isValidStatus(const string& status)
 {
     return status == STATUS_IN_PROGRESS || status == STATUS_ON_HOLD
@@ -217,12 +223,19 @@ bool OrderService::validate(const CheckoutInfo& info, string& error) const
         error = "Special discount must be between 0 and 8 percent.";
         return false;
     }
-    if (!calculator.isEnough(info.amountReceived, totalsFor(info).totalPayable))
+    BillTotals totals = totalsFor(info);
+    if (totals.totalPayable < 0)
+    {
+        error = "The payable amount cannot be negative. Check the product discounts.";
+        return false;
+    }
+    if (!calculator.isEnough(info.amountReceived, totals.totalPayable))
     {
         error = "Amount received must be at least the payable amount.";
         return false;
     }
     return true;
+   
 }
 
 // ---------------------------------------------------------------- building records
@@ -235,11 +248,11 @@ Order OrderService::makeOrder(const string& orderId, const string& date, const s
     o.date = date;
     o.time = time;
     o.customerName = info.customerName;
-    o.customerContact = info.customerContact;
+    o.customerContact = info.customerContact.empty() ? "-" : info.customerContact;
     o.status = info.status;
     o.paymentAmount = t.totalPayable;
     o.paymentMode = info.paymentMode;
-    o.merchant = info.merchant;
+    o.merchant = info.merchant.empty() ? "-" : info.merchant;
     return o;
 }
 
@@ -389,11 +402,16 @@ bool OrderService::checkout(const CheckoutInfo& info,
         return false;
 
 
-    // remove the old held order after the new one is saved
+    // the old held order is removed after the new records are saved
+    string warning = "";
     if (!resumedOrderId.empty())
     {
-        orders.removeById(resumedOrderId);
-        orderDetails.removeByOrderId(resumedOrderId);
+        bool removedOrder = orders.removeById(resumedOrderId);
+        bool removedItems = orderDetails.removeByOrderId(resumedOrderId);
+        if (!removedOrder || !removedItems)
+        {
+            warning = "Order saved, but the old held order could not be removed completely.";
+        }
     }
 
     // the files are saved, so this order is finished
@@ -402,9 +420,9 @@ bool OrderService::checkout(const CheckoutInfo& info,
     clear();
 
     // reduce stock (only when the order is paid)
+    string failed = "";
     if (info.status == STATUS_PAID)
     {
-        string failed = "";
         for (size_t i = 0; i < found.size(); i++)
         {
             found[i].reduceStock(sold[i].quantity);
@@ -413,13 +431,19 @@ bool OrderService::checkout(const CheckoutInfo& info,
                 failed += " " + sold[i].acronym;
             }
         }
-        if (!failed.empty())
-        {
-            error = "Order saved, but the stock could not be updated for:" + failed;
-            return false;
-        }
     }
 
+    string message = warning;
+    if (!failed.empty())
+    {
+        if (!message.empty()) message += " ";
+        message += "Order saved, but the stock could not be updated for:" + failed;
+    }
+    if (!message.empty())
+    {
+        error = message;
+        return false;      // result is filled, so the window can still show the bill
+    }
     return true;
 }
 
@@ -443,7 +467,7 @@ bool OrderService::holdOrder(const string& name, const string& contact,
     o.customerName = name;
     o.customerContact = contact.empty() ? "-" : contact;
     o.status = STATUS_ON_HOLD;
-    o.paymentAmount = getTotals().totalPayable;
+    o.paymentAmount = getTotals().totalPayable;     // discounts are added when the bill is made
     o.paymentMode = "-";
     o.merchant = "-";
 
@@ -460,13 +484,21 @@ bool OrderService::holdOrder(const string& name, const string& contact,
     }
 
     // this order was resumed earlier: the new record replaces the old one
+    bool oldRemoved = true;
     if (!resumedOrderId.empty())
     {
-        orders.removeById(resumedOrderId);
-        details.removeByOrderId(resumedOrderId);
+        bool removedOrder = orders.removeById(resumedOrderId);
+        bool removedItems = details.removeByOrderId(resumedOrderId);
+        oldRemoved = removedOrder && removedItems;
     }
 
     clear();
+
+    if (!oldRemoved)
+    {
+        error = "The order is on hold, but the old copy could not be removed.";
+        return false;      // orderId is filled: the new hold is saved
+    }
     return true;
 }
 
@@ -650,37 +682,40 @@ bool OrderService::saveEditedOrder(const CheckoutInfo& info, IProductRepository&
     r.order = makeOrder(editedOrderId, editedOrder.date, editedOrder.time, info, r.totals);
     r.details = makeDetails(editedOrderId);
 
-    // the bill that this edit replaces: the latest bill of this order that is not edited yet
-    vector<Bill> existing = bills.getAll();
-    for (size_t i = 0; i < existing.size(); i++)
+    Bill current;
+    if (bills.findCurrentByOrderId(editedOrderId, current))
     {
-        if (existing[i].orderId == editedOrderId && existing[i].status != BILL_STATUS_EDITED)
-        {
-            r.replacedBillId = existing[i].billId;
-        }
+        r.replacedBillId = current.billId;
     }
 
     IdGenerator ids;
     r.bill = makeBill(ids.nextBillId(), editedOrderId, todayDate(), nowTime(), info, r.totals);
 
-    // 3. save the new records first
+    // 3. new records first
     if (!saveBill(r.bill, bills, billDetails, error))
     {
         return false;
     }
     if (!orders.update(r.order))
     {
-        error = "Could not update the order.";
+        bills.updateStatus(r.bill.billId, STATUS_EDITED);     // cancel the new bill
+        error = "Could not update the order. The edit was cancelled.";
         return false;
     }
     if (!orderDetails.replaceForOrder(editedOrderId, r.details))
     {
-        error = "Could not update the order items.";
+        orders.update(editedOrder);                           // put the old order back
+        bills.updateStatus(r.bill.billId, STATUS_EDITED);     // cancel the new bill
+        error = "Could not update the order items. The edit was cancelled.";
         return false;
     }
 
-    // 4. old records after the new ones are saved.
-    // NOTE: when BillRepository::setStatus exists, set r.replacedBillId to BILL_STATUS_EDITED here.
+    // 4. old records after the new ones are saved
+    string warning = "";
+    if (!r.replacedBillId.empty() && !bills.updateStatus(r.replacedBillId, STATUS_EDITED))
+    {
+        warning = "Order saved, but the old bill could not be marked as edited.";
+    }
     // NOTE: when the approval files exist, call markUsed(editedOrderId, ...) here.
 
     // 5. stock: only the difference changes
@@ -698,14 +733,20 @@ bool OrderService::saveEditedOrder(const CheckoutInfo& info, IProductRepository&
             failed += " " + changed[i].getAcronym();
         }
     }
+
+    string message = warning;
     if (!failed.empty())
     {
-        error = "Order saved, but the stock could not be updated for:" + failed;
+        if (!message.empty()) message += " ";
+        message += "Order saved, but the stock could not be updated for:" + failed;
+    }
+    if (!message.empty())
+    {
+        error = message;
         return false;
     }
     return true;
 }
-
 // ---------------------------------------------------------------- 7-day rule
 
 bool OrderService::canRequestEdit(const Order& order, string& reason)
@@ -722,6 +763,11 @@ bool OrderService::canRequestEdit(const Order& order, string& reason)
     if (!daysBetween(order.date, todayDate(), days))
     {
         reason = "The date of this order is not valid.";
+        return false;
+    }
+    if (days < 0)
+    {
+        reason = "The date of this order is in the future.";
         return false;
     }
     if (days > PAID_ORDER_EDIT_DAYS)
