@@ -1,5 +1,7 @@
 #include "ProductRepository.h"
+#include "TextFormat.h"
 #include <fstream>
+#include <iomanip>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -96,19 +98,6 @@ static string lower(string text)
     return text;
 }
 
-// Splits a line into words
-static vector<string> splitWords(const string& line)
-{
-    vector<string> words;
-    stringstream ss(line);
-    string word;
-    while (ss >> word)
-    {
-        words.push_back(word);
-    }
-    return words;
-}
-
 // Joins words[from] to words[to - 1] with spaces; _ also becomes a space
 static string buildName(const vector<string>& words, size_t from, size_t to)
 {
@@ -146,9 +135,10 @@ bool ProductRepository::parseLine(string line, Product& p, string& error) const
         error = "missing # at the end of the line";
         return false;
     }
-    line.erase(hash);   // remove the # at the end
+    line.erase(hash + 1);   // drop anything after the last #
 
-    vector<string> words = splitWords(line);
+    // splitLine removes the # at the end and splits the line into words
+    vector<string> words = splitLine(line);
 
     // 4 words at the start + at least 1 word of name + 6 words at the end
     if (words.size() < 11)
@@ -439,23 +429,18 @@ bool ProductRepository::update(const Product& product, string& error)
     return false;
 }
 
-// One product as a line of Product.txt (the name uses _ instead of spaces)
+// One product as a line of Product.txt (same text helpers as the Order and Bill files).
+// price, tax and discount use toText (2 decimals); the quantity has 0 decimals for
+// count products and 3 for weight products, so a weight like 1.250 is not rounded.
 string ProductRepository::toLine(const Product& p) const
 {
-    string name = p.getName();
-    for (size_t j = 0; j < name.size(); j++)
-    {
-        if (name[j] == ' ')
-        {
-            name[j] = '_';
-        }
-    }
+    ostringstream quantity;
+    quantity << fixed << setprecision(p.getUnit() == "count" ? 0 : 3) << p.getQuantity();
 
     ostringstream out;
-    out.precision(10);   // avoids numbers like 1e+06
     out << p.getId() << " " << p.getCategoryId() << " " << p.getBarcode() << " " << p.getAcronym() << " "
-        << name << " " << p.getUnit() << " " << p.getPrice() << " "
-        << p.getTax() << " " << p.getDiscount() << " " << p.getQuantity() << " "
+        << fixText(p.getName()) << " " << p.getUnit() << " " << toText(p.getPrice()) << " "
+        << toText(p.getTax()) << " " << toText(p.getDiscount()) << " " << quantity.str() << " "
         << p.getBarcodePath() << "#";
     return out.str();
 }
