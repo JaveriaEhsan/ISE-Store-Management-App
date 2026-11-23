@@ -57,3 +57,5 @@ compile_commands.json
 Thumbs.db
 
 # ===== Generated files =====
+bill_pdf_test/build/
+*.pdf
