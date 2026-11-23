@@ -1,5 +1,6 @@
 #include "ReportService.h"
 #include "DateUtil.h"
+#include "BillStatus.h"
 #include <algorithm>
 #include <iomanip>
 #include <map>
@@ -132,32 +133,51 @@ bool ReportService::cashSales(const string& from, const string& to,
     return true;
 }
 
-ReportTable ReportService::allSales() const
+ReportTable ReportService::allSales(bool includeEdited) const
 {
     ReportTable t;
-    t.title = "All sales";
-    t.headers = { "Bill id", "Order id", "Date", "Time", "Customer", "Payable",
+    t.title = includeEdited ? "All sales (including edited bills)" : "All sales";
+    t.headers = { "Bill id", "Order id", "Date", "Time", "Customer", "Status", "Payable",
                   "Product discount", "Seasonal discount", "Special discount" };
 
-    // an edited order has more than one bill: the last bill in the file is the current one
-    map<string, Bill> latest;
-    vector<string> orderIds;
     vector<Bill> all = bills.getAll();
-    for (size_t i = 0; i < all.size(); i++)
+    vector<Bill> shown;
+
+    if (includeEdited)
     {
-        if (all[i].status != STATUS_PAID) continue;
-        if (latest.find(all[i].orderId) == latest.end())
+        for (size_t i = 0; i < all.size(); i++)
         {
-            orderIds.push_back(all[i].orderId);
+            if (all[i].status == STATUS_PAID || all[i].status == BILL_STATUS_EDITED)
+                shown.push_back(all[i]);
         }
-        latest[all[i].orderId] = all[i];
+    }
+    else
+    {
+        // edited bills are skipped. If an old bill was not marked edited yet,
+        // the latest bill of an order wins.
+        map<string, size_t> position;
+        for (size_t i = 0; i < all.size(); i++)
+        {
+            if (all[i].status != STATUS_PAID) continue;
+
+            map<string, size_t>::iterator it = position.find(all[i].orderId);
+            if (it == position.end())
+            {
+                position[all[i].orderId] = shown.size();
+                shown.push_back(all[i]);
+            }
+            else
+            {
+                shown[it->second] = all[i];
+            }
+        }
     }
 
     double payable = 0, product = 0, seasonal = 0, special = 0;
-    for (size_t i = 0; i < orderIds.size(); i++)
+    for (size_t i = 0; i < shown.size(); i++)
     {
-        const Bill& b = latest[orderIds[i]];
-        t.rows.push_back({ b.billId, b.orderId, b.date, b.time, readable(b.customerName),
+        const Bill& b = shown[i];
+        t.rows.push_back({ b.billId, b.orderId, b.date, b.time, readable(b.customerName), b.status,
                            money(b.totalPayable), money(b.totalDiscount),
                            money(b.seasonalDiscount), money(b.specialDiscount) });
         payable += b.totalPayable;
