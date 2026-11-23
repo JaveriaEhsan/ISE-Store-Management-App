@@ -1,10 +1,8 @@
 #ifndef PRODUCTREPOSITORY_H
 #define PRODUCTREPOSITORY_H
-
 #include <string>
 #include <vector>
 #include "IProductRepository.h"
-using namespace std;
 
 class ProductRepository : public IProductRepository
 {
@@ -30,11 +28,11 @@ public:
     ProductRepository(const std::string& filename);
 
     // Reads the whole file into memory. Returns false if the file cannot be opened.
-    bool load()override;
+    bool load() override;
 
     // How many lines were skipped by load(), and why
     int getSkippedCount() const;
-    std::vector<std::string> getErrors() const;
+    std::vector<std::string> getErrors() const override;
 
     bool findByBarcode(const std::string& barcode, Product& result) const override;
     std::vector<Product> getAll() const override;

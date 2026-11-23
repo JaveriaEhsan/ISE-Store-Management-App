@@ -1,15 +1,15 @@
 #ifndef IPRODUCTREPOSITORY_H
 #define IPRODUCTREPOSITORY_H
-#include<string>
+#include <string>
 #include <vector>
 #include "../models/product.h"
-using namespace std;
 
 class IProductRepository
 {
 public:
     virtual ~IProductRepository() {}
     virtual bool load() = 0;
+
     // Finds a product by its barcode. Returns false if not found.
     virtual bool findByBarcode(const std::string& barcode, Product& result) const = 0;
 

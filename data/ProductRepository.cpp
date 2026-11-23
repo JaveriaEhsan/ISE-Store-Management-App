@@ -1,8 +1,8 @@
 #include "ProductRepository.h"
 #include <fstream>
 #include <sstream>
-#include<string>
-
+#include <string>
+#include <vector>
 using namespace std;
 // Converts text to a number. Returns false if the text is not a clean number.
 static bool toNumber(const string& text, double& value)
@@ -122,6 +122,8 @@ ProductRepository::ProductRepository(const string& filename)
     this->filename = filename;
 }
 
+// Line format:
+// id categoryId barcode acronym name unit price tax discount quantity path#
 bool ProductRepository::parseLine(string line, Product& p, string& error) const
 {
     size_t hash = line.find_last_of('#');
@@ -134,8 +136,8 @@ bool ProductRepository::parseLine(string line, Product& p, string& error) const
 
     vector<string> words = splitWords(line);
 
-    // 3 words at the start + at least 1 word of name + 6 words at the end
-    if (words.size() < 10)
+    // 4 words at the start + at least 1 word of name + 6 words at the end
+    if (words.size() < 11)
     {
         error = "too few fields";
         return false;
@@ -154,14 +156,25 @@ bool ProductRepository::parseLine(string line, Product& p, string& error) const
     }
 
     string id = words[0];
-    string barcode = words[1];
-    string acronym = words[2];
+    string categoryId = words[1];
+    string barcode = words[2];
+    string acronym = words[3];
     string unit = words[n - 6];
     string path = words[n - 1];
 
+    if (categoryId.size() != 2 || !isDigits(categoryId) || categoryId[0] == '0')
+    {
+        error = "category id must be 2 digits and must not start with 0";
+        return false;
+    }
     if (barcode.size() != 6 || !isDigits(barcode) || barcode[0] == '0')
     {
         error = "barcode must be 6 digits and must not start with 0";
+        return false;
+    }
+    if (barcode.substr(0, 2) != categoryId)
+    {
+        error = "barcode must start with the category id";
         return false;
     }
     if (!isDigits(id))
@@ -217,14 +230,14 @@ bool ProductRepository::parseLine(string line, Product& p, string& error) const
         return false;
     }
 
-    string name = buildName(words, 3, n - 6);
+    string name = buildName(words, 4, n - 6);
     if (!hasLetterOrDigit(name))
     {
         error = "name is empty";
         return false;
     }
 
-    p = Product(id, barcode, acronym, name, unit, values[0], values[1], values[2], values[3], path);
+    p = Product(id, barcode, acronym, name, unit, values[0], values[1], values[2], values[3], path, categoryId);
     if (!p.isValid())
     {
         error = "values are not valid";
@@ -356,6 +369,7 @@ bool ProductRepository::update(const Product& product)
     }
     return false;   // product not found
 }
+
 // One product as a line of Product.txt (the name uses _ instead of spaces)
 string ProductRepository::toLine(const Product& p) const
 {
@@ -370,7 +384,7 @@ string ProductRepository::toLine(const Product& p) const
 
     ostringstream out;
     out.precision(10);   // avoids numbers like 1e+06
-    out << p.getId() << " " << p.getBarcode() << " " << p.getAcronym() << " "
+    out << p.getId() << " " << p.getCategoryId() << " " << p.getBarcode() << " " << p.getAcronym() << " "
         << name << " " << p.getUnit() << " " << p.getPrice() << " "
         << p.getTax() << " " << p.getDiscount() << " " << p.getQuantity() << " "
         << p.getBarcodePath() << "#";
@@ -402,7 +416,8 @@ bool ProductRepository::add(const Product& product, string& error)
 
     Product withId(nextId(), product.getBarcode(), product.getAcronym(), product.getName(),
         product.getUnit(), product.getPrice(), product.getTax(),
-        product.getDiscount(), product.getQuantity(), product.getBarcodePath());
+        product.getDiscount(), product.getQuantity(), product.getBarcodePath(),
+        product.getCategoryId());
 
     // check it with the same rules that are used when the file is loaded
     Product checked;
@@ -425,7 +440,9 @@ bool ProductRepository::add(const Product& product, string& error)
     }
     return true;
 }
+
 // The next free barcode: the biggest barcode in the file plus 1 (the first one is 100000)
+// NOTE: this is replaced in Commit 5 by a version that works per category
 string ProductRepository::nextBarcode() const
 {
     long long biggest = 99999;
