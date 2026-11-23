@@ -36,6 +36,7 @@ struct CheckoutResult
     BillTotals totals;
     bool editedPaidOrder = false;    // true when a paid order was edited
     std::string replacedBillId;         // the bill this edit replaces ("" if none)
+    double editDifference = 0;
 };
 
 class OrderService
