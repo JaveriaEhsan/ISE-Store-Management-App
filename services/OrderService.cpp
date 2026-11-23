@@ -262,9 +262,10 @@ bool OrderService::checkout(const CheckoutInfo& info,
             return false;
         }
     }
-    if (!bills.save(r.bill))
+    string billError;
+    if (!bills.save(r.bill, billError))
     {
-        error = "Could not save the bill.";
+        error = billError.empty() ? "Could not save the bill." : billError;
         return false;
     }
 

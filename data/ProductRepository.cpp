@@ -83,6 +83,19 @@ static bool endsWith(const string& text, const string& ending)
     return text.compare(text.size() - ending.size(), ending.size(), ending) == 0;
 }
 
+// Lower case copy of the text, used for case-insensitive comparison
+static string lower(string text)
+{
+    for (size_t i = 0; i < text.size(); i++)
+    {
+        if (text[i] >= 'A' && text[i] <= 'Z')
+        {
+            text[i] = (char)(text[i] - 'A' + 'a');
+        }
+    }
+    return text;
+}
+
 // Splits a line into words
 static vector<string> splitWords(const string& line)
 {
@@ -353,22 +366,77 @@ bool ProductRepository::findByBarcode(const string& barcode, Product& result) co
     return false;   // not found
 }
 
+bool ProductRepository::findById(const string& id, Product& result) const
+{
+    for (size_t i = 0; i < products.size(); i++)
+    {
+        if (products[i].getId() == id)
+        {
+            result = products[i];
+            return true;
+        }
+    }
+    return false;   // not found
+}
+
+// Not case sensitive. Acronyms are not forced to be unique, so the first match is returned.
+bool ProductRepository::findByAcronym(const string& acronym, Product& result) const
+{
+    string wanted = lower(acronym);
+    for (size_t i = 0; i < products.size(); i++)
+    {
+        if (lower(products[i].getAcronym()) == wanted)
+        {
+            result = products[i];
+            return true;
+        }
+    }
+    return false;   // not found
+}
+
 vector<Product> ProductRepository::getAll() const
 {
     return products;
 }
 
-bool ProductRepository::update(const Product& product)
+// Replaces the product with the same barcode. The new values are checked with the
+// same rules as add() and load(), and the id stored in the file is kept.
+// If the file cannot be written, the old product is put back.
+bool ProductRepository::update(const Product& product, string& error)
 {
+    error = "";
+
     for (size_t i = 0; i < products.size(); i++)
     {
-        if (products[i].getBarcode() == product.getBarcode())
+        if (products[i].getBarcode() != product.getBarcode())
         {
-            products[i] = product;
-            return save();   // write the change to the file
+            continue;
         }
+
+        Product withId(products[i].getId(), product.getBarcode(), product.getAcronym(),
+            product.getName(), product.getUnit(), product.getPrice(), product.getTax(),
+            product.getDiscount(), product.getQuantity(), product.getBarcodePath(),
+            product.getCategoryId());
+
+        Product checked;
+        if (!parseLine(toLine(withId), checked, error))
+        {
+            return false;   // invalid values never reach the file
+        }
+
+        Product old = products[i];
+        products[i] = checked;
+        if (!save())
+        {
+            products[i] = old;
+            error = "Could not save " + filename + ".";
+            return false;
+        }
+        return true;
     }
-    return false;   // product not found
+
+    error = "Product not found.";
+    return false;
 }
 
 // One product as a line of Product.txt (the name uses _ instead of spaces)
@@ -411,6 +479,8 @@ string ProductRepository::nextId() const
     return to_string(biggest + 1);
 }
 
+// Note: this only checks the format of the category id. The category must be
+// verified by the caller (AddProductDialog picks it from the category list).
 bool ProductRepository::add(const Product& product, string& error)
 {
     error = "";
@@ -440,32 +510,6 @@ bool ProductRepository::add(const Product& product, string& error)
         return false;
     }
     return true;
-}
-
-// OLD version: the biggest barcode in the file plus 1 (the first one is 100000).
-// It ignores categories. It is removed once AddProductDialog uses the category version.
-string ProductRepository::nextBarcode() const
-{
-    long long biggest = 99999;
-    for (size_t i = 0; i < products.size(); i++)
-    {
-        try
-        {
-            long long b = stoll(products[i].getBarcode());
-            if (b > biggest)
-            {
-                biggest = b;
-            }
-        }
-        catch (...) {}
-    }
-
-    long long next = biggest + 1;
-    if (next > 999999)
-    {
-        return "";   // there is no free 6-digit barcode left
-    }
-    return to_string(next);
 }
 
 // Barcode = category id (2 digits) + serial (4 digits, 0001 to 9999).

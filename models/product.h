@@ -23,11 +23,12 @@ public:
     Product() : price(0), tax(0), discount(0), quantity(0) {}
 
     Product(const std::string& id, const std::string& barcode, const std::string& acronym,
-            const std::string& name, const std::string& unit, double price, double tax,
-            double discount, double quantity, const std::string& barcodePath, const std::string& categoryId = "")
+        const std::string& name, const std::string& unit, double price, double tax,
+        double discount, double quantity, const std::string& barcodePath, const std::string& categoryId = "")
         : id(id), categoryId(categoryId), barcode(barcode), acronym(acronym), name(name), unit(unit),
-          price(price), tax(tax), discount(discount), quantity(quantity),
-          barcodePath(barcodePath) {}
+        price(price), tax(tax), discount(discount), quantity(quantity),
+        barcodePath(barcodePath) {
+    }
 
     // ----- getters -----
     std::string getId() const { return id; }
@@ -48,16 +49,29 @@ public:
         return required > 0 && required <= quantity;
     }
 
-    // Called after a bill is paid
-    void reduceStock(double amount)
+    // Called after a bill is paid.
+    // Refuses (returns false, quantity unchanged) if amount is not positive
+    // or is more than the stock, so the quantity never goes below zero.
+    bool reduceStock(double amount)
     {
+        if (amount <= 0 || amount > quantity)
+        {
+            return false;
+        }
         quantity -= amount;
-        if (quantity < 0) quantity = 0;
+        return true;
     }
 
-    // Called when a product is restocked while editing old orders
-    void addStock(double amount) { 
-        if (amount > 0) quantity += amount; 
+    // Called when a product is restocked while editing old orders.
+    // Refuses (returns false) if amount is not positive.
+    bool addStock(double amount)
+    {
+        if (amount <= 0)
+        {
+            return false;
+        }
+        quantity += amount;
+        return true;
     }
 
     // Used by the repository when it reads a line from Product.txt
@@ -70,7 +84,8 @@ public:
         // category id: 2 digits, equal to the first two barcode digits
         if (categoryId.size() != 2) return false;
         if (barcode.compare(0, 2, categoryId) != 0) return false;
-        return true;}
+        return true;
+    }
 };
 
 #endif

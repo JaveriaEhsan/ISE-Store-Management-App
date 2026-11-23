@@ -4,10 +4,8 @@
 #include "addproductdialog.h"
 #include "scandialog.h"
 #include "../models/product.h"
-
 #include "../shared.h"
 #include "../barcode/encoder.h"
-
 #include <QWidget>
 #include <QPushButton>
 #include <QLineEdit>

@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include <QStringList>
 #include "../data/IProductRepository.h"
+#include "../data/ICategoryRepository.h"
 
 class QWidget;
 class QPushButton;
@@ -18,12 +19,13 @@ class ManagerWindow : public QMainWindow
     Q_OBJECT
 
 public:
-    explicit ManagerWindow(QWidget *parent = nullptr);
-    void setRepository(IProductRepository *repo);
+    explicit ManagerWindow(QWidget* parent = nullptr);
+    void setRepository(IProductRepository* repo);
+    void setCategoryRepository(ICategoryRepository* repo);
 
 private slots:
     void viewBarcode();
-    void productNumberChanged(const QString &text);
+    void productNumberChanged(const QString& text);
 
     void showDashboard();
     void showBarcodes();
@@ -37,34 +39,35 @@ private:
     void createSidebar();
     void createMainContent();
 
-    QWidget *createDashboardPage();
-    QWidget *createBarcodePage();
+    QWidget* createDashboardPage();
+    QWidget* createBarcodePage();
 
     void syncSidebarSelection();
     void resetBarcodePreview();
 
-    IProductRepository *repository;
+    IProductRepository* repository;
+    ICategoryRepository* categoryRepository = nullptr;
 
-    QWidget *sidebar;
-    QWidget *mainContent;
-    QHBoxLayout *bodyLayout;
-    QStackedWidget *pages;
+    QWidget* sidebar;
+    QWidget* mainContent;
+    QHBoxLayout* bodyLayout;
+    QStackedWidget* pages;
 
-    QWidget *dashboardPage;
-    QWidget *barcodePage;
+    QWidget* dashboardPage;
+    QWidget* barcodePage;
 
-    QPushButton *dashboardButton;
-    QPushButton *barcodesButton;
-    QPushButton *inventoryButton;
-    QPushButton *productScanButton;
+    QPushButton* dashboardButton;
+    QPushButton* barcodesButton;
+    QPushButton* inventoryButton;
+    QPushButton* productScanButton;
 
-    QLineEdit *productNumberInput;
-    QPushButton *viewBarcodeButton;
+    QLineEdit* productNumberInput;
+    QPushButton* viewBarcodeButton;
 
-    QFrame *productsCard;
-    QFrame *barcodeCard;
-    QLabel *barcodeImage;
-    QLabel *barcodeDisplay;
+    QFrame* productsCard;
+    QFrame* barcodeCard;
+    QLabel* barcodeImage;
+    QLabel* barcodeDisplay;
 };
 
 #endif

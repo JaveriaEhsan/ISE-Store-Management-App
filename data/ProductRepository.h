@@ -27,6 +27,9 @@ private:
 public:
     ProductRepository(const std::string& filename);
 
+    // keeps the one-argument update() of the interface visible
+    using IProductRepository::update;
+
     // Reads the whole file into memory. Returns false if the file cannot be opened.
     bool load() override;
 
@@ -35,10 +38,11 @@ public:
     std::vector<std::string> getErrors() const override;
 
     bool findByBarcode(const std::string& barcode, Product& result) const override;
+    bool findById(const std::string& id, Product& result) const override;
+    bool findByAcronym(const std::string& acronym, Product& result) const override;
     std::vector<Product> getAll() const override;
-    bool update(const Product& product) override;
+    bool update(const Product& product, std::string& error) override;
     bool add(const Product& product, std::string& error) override;
-    std::string nextBarcode() const override;
     std::string nextBarcode(const std::string& categoryId) const override;
 };
 
