@@ -1,26 +1,22 @@
 #include "OrderService.h"
 #include "IdGenerator.h"
+#include "DateUtil.h"
+#include "../config.h"
 #include <sstream>
-#include <ctime>
+#include <cmath>
+#include "BillStatus.h"
 
 using namespace std;
 
-static string currentDate()
-{
-    time_t now = time(nullptr);
-    tm* t = localtime(&now);
-    char buffer[16];
-    strftime(buffer, sizeof(buffer), "%Y-%m-%d", t);
-    return buffer;
-}
+// ---------------------------------------------------------------- cart
 
-static string currentTime()
+double OrderService::availableFor(const Product& p) const
 {
-    time_t now = time(nullptr);
-    tm* t = localtime(&now);
-    char buffer[16];
-    strftime(buffer, sizeof(buffer), "%H:%M:%S", t);
-    return buffer;
+    // when a paid order is edited, what it already took from the stock counts as available
+    double extra = 0;
+    map<string, double>::const_iterator it = originalQty.find(p.getBarcode());
+    if (it != originalQty.end()) extra = it->second;
+    return p.getQuantity() + extra;
 }
 
 bool OrderService::addItem(const Product& p, double quantity, string& error)
@@ -38,7 +34,6 @@ bool OrderService::addItem(const Product& p, double quantity, string& error)
         return false;
     }
 
-    // quantity already added to this order for the same product
     int index = -1;
     for (size_t i = 0; i < cart.size(); i++)
     {
@@ -48,11 +43,12 @@ bool OrderService::addItem(const Product& p, double quantity, string& error)
         }
     }
     double inCart = (index >= 0) ? cart[index].quantity : 0;
+    double available = availableFor(p);
 
-    if (!p.hasStock(inCart + quantity))
+    if (inCart + quantity > available)   // equal to the stock is allowed
     {
         ostringstream msg;
-        msg << "Not enough stock. Available: " << (p.getQuantity() - inCart);
+        msg << "Not enough stock. Available: " << (available - inCart);
         error = msg.str();
         return false;
     }
@@ -102,10 +98,10 @@ bool OrderService::setQuantity(const Product& p, double quantity, string& error)
         error = "This product is sold by count, so use a whole number.";
         return false;
     }
-    if (!p.hasStock(quantity))   // equal to the stock is allowed
+    if (quantity > availableFor(p))
     {
         ostringstream msg;
-        msg << "Not enough stock. Available: " << p.getQuantity();
+        msg << "Not enough stock. Available: " << availableFor(p);
         error = msg.str();
         return false;
     }
@@ -127,6 +123,9 @@ void OrderService::clear()
 {
     cart.clear();
     resumedOrderId.clear();
+    editedOrderId.clear();
+    editedOrder = Order();
+    originalQty.clear();
 }
 
 const vector<BillItem>& OrderService::getItems() const
@@ -150,17 +149,44 @@ bool OrderService::isValidPaymentMode(const string& mode)
     return mode == PAY_CASH || mode == PAY_CARD || mode == PAY_WALLET;
 }
 
-bool OrderService::checkout(const CheckoutInfo& info,
-    IProductRepository& products,
-    OrderRepository& orders,
-    OrderDetailRepository& orderDetails,
-    BillRepository& bills,
-    CheckoutResult& result,
-    string& error)
+// ---------------------------------------------------------------- seasons and totals
+
+double OrderService::currentSeasonalPercent(const ISeasonRepository& seasons) const
 {
-    error = "";
+    string today = dateKey(todayDate());
+    double best = 0;
 
+    vector<Season> all = seasons.getAll();
+    for (size_t i = 0; i < all.size(); i++)
+    {
+        if (!all[i].isActive) continue;
 
+        string start = dateKey(all[i].startDate);
+        string end = dateKey(all[i].endDate);
+        if (start.empty() || end.empty()) continue;
+
+        if (start <= today && today <= end && all[i].discountPercent > best)
+        {
+            best = all[i].discountPercent;
+        }
+    }
+    return best;
+}
+
+BillTotals OrderService::totalsFor(const CheckoutInfo& info) const
+{
+    SeasonalDiscount seasonal(info.seasonalPercent);
+    SpecialDiscount special(info.specialPercent);
+
+    vector<const IDiscountRule*> rules;
+    rules.push_back(&seasonal);
+    rules.push_back(&special);
+
+    return calculator.calculate(cart, rules);
+}
+
+bool OrderService::validate(const CheckoutInfo& info, string& error) const
+{
     if (cart.empty())
     {
         error = "The order is empty.";
@@ -186,6 +212,137 @@ bool OrderService::checkout(const CheckoutInfo& info,
         error = "Merchant name is required for card and wallet payments.";
         return false;
     }
+    if (!SpecialDiscount::isValidPercent(info.specialPercent))
+    {
+        error = "Special discount must be between 0 and 8 percent.";
+        return false;
+    }
+    if (!calculator.isEnough(info.amountReceived, totalsFor(info).totalPayable))
+    {
+        error = "Amount received must be at least the payable amount.";
+        return false;
+    }
+    return true;
+}
+
+// ---------------------------------------------------------------- building records
+
+Order OrderService::makeOrder(const string& orderId, const string& date, const string& time,
+    const CheckoutInfo& info, const BillTotals& t) const
+{
+    Order o;
+    o.orderId = orderId;
+    o.date = date;
+    o.time = time;
+    o.customerName = info.customerName;
+    o.customerContact = info.customerContact;
+    o.status = info.status;
+    o.paymentAmount = t.totalPayable;
+    o.paymentMode = info.paymentMode;
+    o.merchant = info.merchant;
+    return o;
+}
+
+vector<OrderDetail> OrderService::makeDetails(const string& orderId) const
+{
+    vector<OrderDetail> list;
+    for (size_t i = 0; i < cart.size(); i++)
+    {
+        OrderDetail d;
+        d.orderId = orderId;
+        d.productId = cart[i].productId;
+        d.barcode = cart[i].barcode;
+        d.quantity = cart[i].quantity;
+        list.push_back(d);
+    }
+    return list;
+}
+
+Bill OrderService::makeBill(const string& billId, const string& orderId,
+    const string& date, const string& time,
+    const CheckoutInfo& info, const BillTotals& t) const
+{
+    Bill b;
+    b.billId = billId;
+    b.customerName = info.customerName;
+    b.orderId = orderId;
+    b.totalWithoutTax = t.totalWithoutTax;
+    b.totalTax = t.totalTax;
+    b.totalDiscount = t.totalDiscount;          // product discounts
+    b.totalPayable = t.totalPayable;
+    b.status = info.status;
+    b.amountReceived = info.amountReceived;
+    b.balanceReturned = calculator.balance(info.amountReceived, t.totalPayable);
+    b.seasonalDiscount = t.seasonalAmount;      // PKR
+    b.specialDiscount = t.specialAmount;        // PKR
+    b.date = date;
+    b.time = time;
+
+    for (size_t i = 0; i < cart.size(); i++)
+    {
+        BillLine line;
+        line.acronym = cart[i].acronym;
+        line.barcode = cart[i].barcode;
+        line.unitPrice = cart[i].unitPrice;
+        line.discountPerUnit = cart[i].discountPerUnit;
+        line.taxPerUnit = cart[i].taxPerUnit;
+        line.quantity = cart[i].quantity;
+        b.lines.push_back(line);
+    }
+    return b;
+}
+
+// Bill.txt gets one line, BillDetail.txt gets one line per product
+bool OrderService::saveBill(const Bill& bill, BillRepository& bills,
+    BillDetailRepository& billDetails, string& error) const
+{
+    if (!bills.save(bill, error))
+    {
+        if (error.empty()) error = "Could not save the bill.";
+        return false;
+    }
+    for (size_t i = 0; i < bill.lines.size(); i++)
+    {
+        BillDetail d;
+        d.billId = bill.billId;
+        d.acronym = bill.lines[i].acronym;
+        d.unitPrice = bill.lines[i].unitPrice;
+        d.quantity = bill.lines[i].quantity;
+        d.discount = bill.lines[i].discount();      // discount per unit x quantity
+
+        if (!billDetails.save(d))
+        {
+            error = "Could not save the bill details.";
+            return false;
+        }
+    }
+    return true;
+}
+
+// ---------------------------------------------------------------- checkout
+
+bool OrderService::checkout(const CheckoutInfo& info,
+    IProductRepository& products,
+    OrderRepository& orders,
+    OrderDetailRepository& orderDetails,
+    BillRepository& bills,
+    BillDetailRepository& billDetails,
+    CheckoutResult& result,
+    string& error)
+{
+    error = "";
+
+    if (!editedOrderId.empty())
+    {
+        return saveEditedOrder(info, products, orders, orderDetails,
+            bills, billDetails, result, error);
+    }
+
+    if (!validate(info, error))
+    {
+        return false;
+    }
+
     // check every product again, because stock may have changed since it was added
     vector<Product> found;
     for (size_t i = 0; i < cart.size(); i++)
@@ -204,51 +361,16 @@ bool OrderService::checkout(const CheckoutInfo& info,
         found.push_back(p);
     }
 
-    // build the records 
+    // build the records
     CheckoutResult r;
-    r.totals = calculator.calculate(cart);
+    r.totals = totalsFor(info);
 
     IdGenerator ids;
+    r.order = makeOrder(ids.nextOrderId(), todayDate(), nowTime(), info, r.totals);
+    r.details = makeDetails(r.order.orderId);
+    r.bill = makeBill(ids.nextBillId(), r.order.orderId, r.order.date, r.order.time, info, r.totals);
 
-    r.order.orderId = ids.nextOrderId();
-    r.order.date = currentDate();
-    r.order.time = currentTime();
-    r.order.customerName = info.customerName;
-    r.order.customerContact = info.customerContact;
-    r.order.status = info.status;
-    r.order.paymentAmount = r.totals.totalPayable;
-    r.order.paymentMode = info.paymentMode;
-    r.order.merchant = info.merchant;
-
-    r.bill.billId = ids.nextBillId();
-    r.bill.customerName = info.customerName;
-    r.bill.orderId = r.order.orderId;
-    r.bill.totalWithoutTax = r.totals.totalWithoutTax;
-    r.bill.totalTax = r.totals.totalTax;
-    r.bill.totalDiscount = r.totals.totalDiscount;
-    r.bill.totalPayable = r.totals.totalPayable;
-    r.bill.status = info.status;
-
-    for (size_t i = 0; i < cart.size(); i++)
-    {
-        OrderDetail d;
-        d.orderId = r.order.orderId;
-        d.productId = cart[i].productId;
-        d.barcode = cart[i].barcode;
-        d.quantity = cart[i].quantity;
-        r.details.push_back(d);
-
-        BillLine line;
-        line.acronym = cart[i].acronym;
-        line.barcode = cart[i].barcode;
-        line.unitPrice = cart[i].unitPrice;
-        line.discountPerUnit = cart[i].discountPerUnit;
-        line.taxPerUnit = cart[i].taxPerUnit;
-        line.quantity = cart[i].quantity;
-        r.bill.lines.push_back(line);
-    }
-
-    //  save 
+    // save the new records first
     if (!orders.save(r.order))
     {
         error = "Could not save the order.";
@@ -262,24 +384,24 @@ bool OrderService::checkout(const CheckoutInfo& info,
             return false;
         }
     }
-    if (!bills.save(r.bill))
+    if (!saveBill(r.bill, bills, billDetails, error))
     {
-        error = "Could not save the bill.";
         return false;
     }
 
-    if (!resumedOrderId.empty())          // this order came from a held order
+    // remove the old held order after the new one is saved
+    if (!resumedOrderId.empty())
     {
         orders.removeById(resumedOrderId);
         orderDetails.removeByOrderId(resumedOrderId);
     }
 
-    // the files are saved, so this order is finished 
+    // the files are saved, so this order is finished
     vector<BillItem> sold = cart;
     result = r;
     clear();
 
-    //  reduce stock (only when the order is paid)
+    // reduce stock (only when the order is paid)
     if (info.status == STATUS_PAID)
     {
         string failed = "";
@@ -301,26 +423,23 @@ bool OrderService::checkout(const CheckoutInfo& info,
     return true;
 }
 
+// ---------------------------------------------------------------- hold and resume
+
 bool OrderService::holdOrder(const string& name, const string& contact,
     OrderRepository& orders, OrderDetailRepository& details,
     string& orderId, string& error)
 {
+    error.clear();
     if (cart.empty()) { error = "The order is empty."; return false; }
-
-    time_t now = time(nullptr);
-    tm* lt = localtime(&now);
-    char date[20], clock[20];
-    strftime(date, sizeof(date), "%Y-%m-%d", lt);
-    strftime(clock, sizeof(clock), "%H:%M", lt);
+    if (!editedOrderId.empty()) { error = "A paid order cannot be put on hold."; return false; }
 
     IdGenerator ids;
     orderId = ids.nextOrderId();
 
     Order o;
     o.orderId = orderId;
-    o.date = currentDate();
-    o.time = currentTime();
-    
+    o.date = todayDate();
+    o.time = nowTime();
     o.customerName = name;
     o.customerContact = contact.empty() ? "-" : contact;
     o.status = STATUS_ON_HOLD;
@@ -372,5 +491,244 @@ bool OrderService::resumeOrder(const string& orderId, IProductRepository& produc
 
     if (cart.empty()) return false;
     resumedOrderId = orderId;                      // set AFTER clear()
+    return true;
+}
+
+// ---------------------------------------------------------------- editing an existing order
+
+bool OrderService::canEdit(const Order& order, string& reason)
+{
+    reason.clear();
+
+    if (order.status == STATUS_ARCHIVED)
+    {
+        reason = "Archived orders cannot be edited.";
+        return false;
+    }
+    if (order.status == STATUS_PAID)
+    {
+        return canRequestEdit(order, reason);       // paid: only within 7 days
+    }
+    return true;   // on-hold and in-progress orders can always be edited
+}
+
+bool OrderService::loadOrderForEdit(const string& orderId, bool approved,
+    IProductRepository& products,
+    OrderRepository& orders, OrderDetailRepository& details,
+    string& error)
+{
+    clear();
+    error.clear();
+
+    Order order;
+    if (!orders.findById(orderId, order))
+    {
+        error = "Order not found.";
+        return false;
+    }
+    if (!canEdit(order, error))
+    {
+        return false;
+    }
+
+    if (order.status != STATUS_PAID)
+    {
+        return resumeOrder(orderId, products, details, error);   // held or in-progress
+    }
+
+    if (!approved)
+    {
+        error = "Manager approval is required to edit a paid order.";
+        return false;
+    }
+
+    // paid order: remember what it already took from the stock
+    vector<OrderDetail> old = details.findByOrderId(orderId);
+    for (size_t i = 0; i < old.size(); i++)
+    {
+        originalQty[old[i].barcode] += old[i].quantity;
+    }
+    editedOrderId = orderId;
+    editedOrder = order;
+
+    for (size_t i = 0; i < old.size(); i++)
+    {
+        Product p;
+        if (!products.findByBarcode(old[i].barcode, p))
+        {
+            error += old[i].barcode + ": product no longer exists\n";
+            continue;
+        }
+        string why;
+        if (!addItem(p, old[i].quantity, why))
+            error += p.getAcronym() + ": " + why + "\n";
+    }
+
+    if (cart.empty())
+    {
+        clear();
+        return false;
+    }
+    return true;
+}
+
+map<string, double> OrderService::stockDifference(const map<string, double>& before,
+    const vector<BillItem>& after)
+{
+    map<string, double> diff;
+
+    for (map<string, double>::const_iterator it = before.begin(); it != before.end(); ++it)
+    {
+        diff[it->first] -= it->second;
+    }
+    for (size_t i = 0; i < after.size(); i++)
+    {
+        diff[after[i].barcode] += after[i].quantity;
+    }
+
+    for (map<string, double>::iterator it = diff.begin(); it != diff.end(); )
+    {
+        if (fabs(it->second) < 1e-9) it = diff.erase(it);   // no change for this product
+        else ++it;
+    }
+    return diff;
+}
+
+bool OrderService::saveEditedOrder(const CheckoutInfo& info, IProductRepository& products,
+    OrderRepository& orders, OrderDetailRepository& orderDetails,
+    BillRepository& bills, BillDetailRepository& billDetails,
+    CheckoutResult& result, string& error)
+{
+    error.clear();
+
+    if (editedOrderId.empty())
+    {
+        error = "No paid order is open for editing.";
+        return false;
+    }
+    if (info.status != STATUS_PAID)
+    {
+        error = "A paid order stays paid.";
+        return false;
+    }
+    if (!validate(info, error))
+    {
+        return false;
+    }
+
+    // 1. stock check, before anything is saved
+    map<string, double> diff = stockDifference(originalQty, cart);
+    vector<Product> changed;
+    vector<double> amounts;
+    for (map<string, double>::const_iterator it = diff.begin(); it != diff.end(); ++it)
+    {
+        Product p;
+        if (!products.findByBarcode(it->first, p))
+        {
+            if (it->second > 0)
+            {
+                error = "Product not found: " + it->first;
+                return false;
+            }
+            continue;   // a removed product that no longer exists: nothing to give back
+        }
+        if (it->second > 0 && !p.hasStock(it->second))
+        {
+            error = "Not enough stock for " + p.getAcronym();
+            return false;
+        }
+        changed.push_back(p);
+        amounts.push_back(it->second);
+    }
+
+    // 2. build the new records
+    CheckoutResult r;
+    r.totals = totalsFor(info);
+    r.editedPaidOrder = true;
+
+    // the order keeps its original date and time, so an edit does not extend the 7 days
+    r.order = makeOrder(editedOrderId, editedOrder.date, editedOrder.time, info, r.totals);
+    r.details = makeDetails(editedOrderId);
+
+    // the bill that this edit replaces: the latest bill of this order that is not edited yet
+    vector<Bill> existing = bills.getAll();
+    for (size_t i = 0; i < existing.size(); i++)
+    {
+        if (existing[i].orderId == editedOrderId && existing[i].status != BILL_STATUS_EDITED)
+        {
+            r.replacedBillId = existing[i].billId;
+        }
+    }
+
+    IdGenerator ids;
+    r.bill = makeBill(ids.nextBillId(), editedOrderId, todayDate(), nowTime(), info, r.totals);
+
+    // 3. save the new records first
+    if (!saveBill(r.bill, bills, billDetails, error))
+    {
+        return false;
+    }
+    if (!orders.update(r.order))
+    {
+        error = "Could not update the order.";
+        return false;
+    }
+    if (!orderDetails.replaceForOrder(editedOrderId, r.details))
+    {
+        error = "Could not update the order items.";
+        return false;
+    }
+
+    // 4. old records after the new ones are saved.
+    // NOTE: when BillRepository::setStatus exists, set r.replacedBillId to BILL_STATUS_EDITED here.
+    // NOTE: when the approval files exist, call markUsed(editedOrderId, ...) here.
+
+    // 5. stock: only the difference changes
+    result = r;
+    clear();
+
+    string failed = "";
+    for (size_t i = 0; i < changed.size(); i++)
+    {
+        if (amounts[i] > 0) changed[i].reduceStock(amounts[i]);
+        else                changed[i].addStock(-amounts[i]);
+
+        if (!products.update(changed[i]))
+        {
+            failed += " " + changed[i].getAcronym();
+        }
+    }
+    if (!failed.empty())
+    {
+        error = "Order saved, but the stock could not be updated for:" + failed;
+        return false;
+    }
+    return true;
+}
+
+// ---------------------------------------------------------------- 7-day rule
+
+bool OrderService::canRequestEdit(const Order& order, string& reason)
+{
+    reason.clear();
+
+    if (order.status != STATUS_PAID)
+    {
+        reason = "Only paid orders need a manager's approval.";
+        return false;
+    }
+
+    int days = 0;
+    if (!daysBetween(order.date, todayDate(), days))
+    {
+        reason = "The date of this order is not valid.";
+        return false;
+    }
+    if (days > PAID_ORDER_EDIT_DAYS)
+    {
+        reason = "A paid order can only be edited within "
+            + to_string(PAID_ORDER_EDIT_DAYS) + " days of payment.";
+        return false;
+    }
     return true;
 }
