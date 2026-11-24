@@ -1,4 +1,5 @@
 #include "BillPdfExporter.h"
+#include "models/order.h"
 #include <QPdfWriter>
 #include <QPainter>
 #include <QPageSize>
@@ -108,23 +109,33 @@ bool BillPdfExporter::exportBill(const Bill& bill, const std::string& filePath,
     p.end();
     return true;
 }
+// orderBills must be in saving order, as returned by BillRepository::findByOrderId
+// (it keeps file order). Only the bill saved just before / just after this one is named.
 std::string BillPdfExporter::makeNote(const Bill& bill, const std::vector<Bill>& orderBills)
 {
-    if (bill.status == "edited") {
-        for (const Bill& b : orderBills)
-            if (b.billId != bill.billId && b.status != "edited")
-                return "EDITED - replaced by bill " + b.billId;
-        return "EDITED";
-    }
+    if (bill.status == STATUS_CANCELLED)                 // drop if the constant is missing
+        return "CANCELLED - not issued";                 // drop if the constant is missing
 
-    std::string older;
-    int count = 0;
-    for (const Bill& b : orderBills) {
-        if (b.billId == bill.billId) continue;
-        if (count > 0) older += ", ";
-        older += b.billId;
-        ++count;
+    // issued bills only, still in saving order
+    std::vector<const Bill*> issued;
+    for (const Bill& b : orderBills)
+        if (b.status != STATUS_CANCELLED)                // drop if the constant is missing
+            issued.push_back(&b);
+
+    size_t pos = issued.size();                          // size() means "not in the list"
+    for (size_t i = 0; i < issued.size(); ++i)
+        if (issued[i]->billId == bill.billId) { pos = i; break; }
+
+    std::string note;
+    if (pos > 0)                                         // a bill came before this one
+        note = "REVISED - replaces bill " + issued[pos - 1]->billId;
+
+    if (bill.status == STATUS_EDITED) {
+        if (!note.empty()) note += "; ";
+        if (pos + 1 < issued.size())                     // the bill saved right after
+            note += "EDITED - replaced by bill " + issued[pos + 1]->billId;
+        else
+            note += "EDITED";
     }
-    if (count == 0) return "";
-    return std::string("REVISED - replaces bill") + (count > 1 ? "s " : " ") + older;
+    return note;
 }

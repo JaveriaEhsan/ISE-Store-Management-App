@@ -12,8 +12,9 @@ public:
     bool exportBill(const Bill& bill, const std::string& filePath,
                     const std::string& note = "") const;
 
-    // Builds the "REVISED / EDITED" line from all bills of the same order
-    // (pass BillRepository::findByOrderId(bill.orderId)). Returns "" if no note is needed.
+    // Builds the "REVISED / EDITED" line. Pass BillRepository::findByOrderId(bill.orderId):
+    // the list must be in saving order. Only the bills just before and just after this
+    // one are named. Cancelled bills are skipped. Returns "" if no note is needed.
     static std::string makeNote(const Bill& bill, const std::vector<Bill>& orderBills);
 };
 
