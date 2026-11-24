@@ -28,7 +28,7 @@ QString readableName(const std::string& name)
 }
 
 bool BillPdfExporter::exportBill(const Bill& bill, const std::string& filePath,
-                                 const std::string& note) const
+                                 const std::string& note,const Bill* previous) const
 {
     QPdfWriter writer(QString::fromStdString(filePath));
     writer.setPageSize(QPageSize(QPageSize::A4));
@@ -114,7 +114,7 @@ bool BillPdfExporter::exportBill(const Bill& bill, const std::string& filePath,
     y += 10;
 
     // totals (keep the block together on one page)
-    if (y + 9 * rowH > bottom) { writer.newPage(); y = 60; }
+    if (y + 8 * rowH > bottom) { writer.newPage(); y = 60; }
     drawLabelValue("Total without tax:", money(bill.totalWithoutTax), normal);
     drawLabelValue("Seasonal discount:", money(bill.seasonalDiscount), normal);
     drawLabelValue("Special discount:", money(bill.specialDiscount), normal);
@@ -123,7 +123,18 @@ bool BillPdfExporter::exportBill(const Bill& bill, const std::string& filePath,
     drawLabelValue("Total payable:", money(bill.totalPayable), bold);
     drawLabelValue("Amount received:", money(bill.amountReceived), normal);
     drawLabelValue("Balance returned:", money(bill.balanceReturned), normal);
-
+    
+        if (previous) {
+        const double diff = bill.totalPayable - previous->totalPayable;
+        drawLabelValue("Previous bill total:", money(previous->totalPayable), normal);
+        if (diff > 0.005)
+            drawLabelValue("Extra paid:", money(diff), bold);
+        else if (diff < -0.005)
+            drawLabelValue("Refund:", money(-diff), bold);
+        else
+            drawLabelValue("Difference:", money(0), normal);
+    }
+    
     p.end();
     return true;
 }
@@ -131,13 +142,13 @@ bool BillPdfExporter::exportBill(const Bill& bill, const std::string& filePath,
 // (it keeps file order). Only the bill saved just before / just after this one is named.
 std::string BillPdfExporter::makeNote(const Bill& bill, const std::vector<Bill>& orderBills)
 {
-    if (bill.status == STATUS_CANCELLED)                 // drop if the constant is missing
-        return "CANCELLED - not issued";                 // drop if the constant is missing
+    if (bill.status == STATUS_CANCELLED)
+        return "CANCELLED - not issued";                
 
     // issued bills only, still in saving order
     std::vector<const Bill*> issued;
     for (const Bill& b : orderBills)
-        if (b.status != STATUS_CANCELLED)                // drop if the constant is missing
+        if (b.status != STATUS_CANCELLED)                
             issued.push_back(&b);
 
     size_t pos = issued.size();                          // size() means "not in the list"
@@ -156,4 +167,14 @@ std::string BillPdfExporter::makeNote(const Bill& bill, const std::vector<Bill>&
             note += "EDITED";
     }
     return note;
+}
+const Bill* BillPdfExporter::previousBill(const Bill& bill, const std::vector<Bill>& orderBills)
+{
+    const Bill* before = nullptr;                  // last real bill seen so far
+    for (const Bill& b : orderBills) {
+        if (b.status == STATUS_CANCELLED) continue; // skip cancelled bills
+        if (b.billId == bill.billId) return before; // found ours, so return the one before
+        before = &b;
+    }
+    return nullptr;                                // our bill was not in the list
 }
