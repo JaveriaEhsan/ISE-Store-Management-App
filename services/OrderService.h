@@ -15,7 +15,8 @@
 #include "../data/OrderDetailRepository.h"
 #include "../data/BillRepository.h"
 #include "../data/BillDetailRepository.h"
-
+#include "../models/approval.h"
+#include "../data/ApprovalRepository.h"
 struct CheckoutInfo
 {
     std::string customerName;
@@ -88,8 +89,8 @@ public:
         BillRepository& bills,
         BillDetailRepository& billDetails,
         CheckoutResult& result,
-        std::string& error);
-
+        std::string& error,
+        ApprovalRepository* approvals = nullptr);   // needed only when a paid order is edited
     static bool isValidStatus(const std::string& status);
     static bool isValidPaymentMode(const std::string& mode);
 
@@ -111,11 +112,21 @@ public:
 
     // paid and within PAID_ORDER_EDIT_DAYS days
     static bool canRequestEdit(const Order& order, std::string& reason);
+    // The cashier asks for approval to edit a paid order. Fills requestId.
+// Refused if the order is not paid, is older than 7 days, or already has a pending/approved request.
+    static bool requestApproval(const std::string& orderId,
+        OrderRepository& orders, ApprovalRepository& approvals,
+        std::string& requestId, std::string& error);
+
+    // True if the newest active request of this order is approved (not yet used)
+    static bool isApproved(const std::string& orderId, const ApprovalRepository& approvals);
 
     // on-hold / in-progress: same as resumeOrder. paid: needs approved == true.
-    bool loadOrderForEdit(const std::string& orderId, bool approved,
+       // on-hold / in-progress: same as resumeOrder. paid: needs an approved request in Approvals.txt.
+    bool loadOrderForEdit(const std::string& orderId,
         IProductRepository& products,
         OrderRepository& orders, OrderDetailRepository& details,
+        const ApprovalRepository& approvals,
         std::string& error);
     bool isEditingPaidOrder() const { return !editedOrderId.empty(); }
 
@@ -127,7 +138,8 @@ public:
     bool saveEditedOrder(const CheckoutInfo& info, IProductRepository& products,
         OrderRepository& orders, OrderDetailRepository& orderDetails,
         BillRepository& bills, BillDetailRepository& billDetails,
-        CheckoutResult& result, std::string& error);
+        CheckoutResult& result, std::string& error,
+        ApprovalRepository* approvals);
 
     // How much the stock changes per barcode when an order is edited:
     // positive = take more from the stock, negative = give back.

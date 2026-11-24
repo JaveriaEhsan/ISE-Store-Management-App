@@ -346,15 +346,17 @@ bool OrderService::checkout(const CheckoutInfo& info,
     BillRepository& bills,
     BillDetailRepository& billDetails,
     CheckoutResult& result,
-    string& error)
+    string& error,
+    ApprovalRepository* approvals)
 {
     error = "";
 
     if (!editedOrderId.empty())
     {
         return saveEditedOrder(info, products, orders, orderDetails,
-            bills, billDetails, result, error);
+            bills, billDetails, result, error, approvals);
     }
+  
 
     if (!validate(info, error))
     {
@@ -570,9 +572,10 @@ bool OrderService::canEdit(const Order& order, string& reason)
     return true;   // on-hold and in-progress orders can always be edited
 }
 
-bool OrderService::loadOrderForEdit(const string& orderId, bool approved,
+bool OrderService::loadOrderForEdit(const string& orderId,
     IProductRepository& products,
     OrderRepository& orders, OrderDetailRepository& details,
+    const ApprovalRepository& approvals,
     string& error)
 {
     clear();
@@ -594,7 +597,7 @@ bool OrderService::loadOrderForEdit(const string& orderId, bool approved,
         return resumeOrder(orderId, products, details, error);   // held or in-progress (warning allowed)
     }
 
-    if (!approved)
+    if (!isApproved(orderId, approvals))
     {
         error = "Manager approval is required to edit a paid order.";
         return false;
@@ -673,8 +676,8 @@ map<string, double> OrderService::stockDifference(const map<string, double>& bef
 bool OrderService::saveEditedOrder(const CheckoutInfo& info, IProductRepository& products,
     OrderRepository& orders, OrderDetailRepository& orderDetails,
     BillRepository& bills, BillDetailRepository& billDetails,
-    CheckoutResult& result, string& error)
-{
+    CheckoutResult& result, string& error,
+    ApprovalRepository* approvals) {
     error.clear();
 
     if (editedOrderId.empty())
@@ -685,6 +688,15 @@ bool OrderService::saveEditedOrder(const CheckoutInfo& info, IProductRepository&
     if (info.status != STATUS_PAID)
     {
         error = "A paid order stays paid.";
+        return false;
+    }
+    // the approval must still be valid at the moment of saving
+    Approval approval;
+    if (approvals == nullptr
+        || !approvals->findActiveByOrderId(editedOrderId, approval)
+        || approval.status != APPROVAL_APPROVED)
+    {
+        error = "The manager's approval is missing or already used. Request a new approval.";
         return false;
     }
 
@@ -795,8 +807,12 @@ bool OrderService::saveEditedOrder(const CheckoutInfo& info, IProductRepository&
     {
         warning = "Order saved, but the old bill could not be marked as edited.";
     }
-    // NOTE: when the approval files exist, call markUsed(editedOrderId, ...) here.
-
+    string approvalError;
+    if (!approvals->setStatus(approval.requestId, APPROVAL_USED, approvalError))
+    {
+        if (!warning.empty()) warning += " ";
+        warning += "Order saved, but the approval could not be marked as used. " + approvalError;
+    }
     // 5. stock: only the difference changes
     result = r;
     clear();
@@ -859,4 +875,55 @@ bool OrderService::canRequestEdit(const Order& order, string& reason)
         return false;
     }
     return true;
+}
+// ---------------------------------------------------------------- approvals
+
+bool OrderService::requestApproval(const string& orderId,
+    OrderRepository& orders, ApprovalRepository& approvals,
+    string& requestId, string& error)
+{
+    error.clear();
+    requestId.clear();
+
+    Order order;
+    if (!orders.findById(orderId, order))
+    {
+        error = "Order not found.";
+        return false;
+    }
+    if (!canRequestEdit(order, error))          // paid, and within the 7 days
+    {
+        return false;
+    }
+
+    Approval existing;
+    if (approvals.findActiveByOrderId(orderId, existing))
+    {
+        error = (existing.status == APPROVAL_PENDING)
+            ? "A request for this order is already waiting for the manager."
+            : "This order is already approved for editing.";
+        return false;
+    }
+
+    Approval a;
+    a.requestId = approvals.nextId();
+    a.orderId = orderId;
+    a.requestDate = todayDate();
+    a.requestTime = nowTime();
+    a.status = APPROVAL_PENDING;
+    a.decisionDate = "-";
+    a.decisionTime = "-";
+
+    if (!approvals.add(a, error))
+    {
+        return false;
+    }
+    requestId = a.requestId;
+    return true;
+}
+
+bool OrderService::isApproved(const string& orderId, const ApprovalRepository& approvals)
+{
+    Approval a;
+    return approvals.findActiveByOrderId(orderId, a) && a.status == APPROVAL_APPROVED;
 }
