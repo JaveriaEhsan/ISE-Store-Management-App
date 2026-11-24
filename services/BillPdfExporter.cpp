@@ -9,6 +9,22 @@
 
 namespace {
 QString money(double v) { return QString::number(v, 'f', 2); }
+// count items show no decimals (2), weight items show up to 3 (1.25)
+QString qty(double v)
+{
+    QString s = QString::number(v, 'f', 3);
+    while (s.endsWith('0')) s.chop(1);
+    if (s.endsWith('.')) s.chop(1);
+    return s;
+}
+
+// stored names use "_" instead of spaces; an empty name shows "-"
+QString readableName(const std::string& name)
+{
+    QString s = QString::fromStdString(name);
+    s.replace('_', ' ');
+    return s.isEmpty() ? QString("-") : s;
+}
 }
 
 bool BillPdfExporter::exportBill(const Bill& bill, const std::string& filePath,
@@ -40,7 +56,9 @@ bool BillPdfExporter::exportBill(const Bill& bill, const std::string& filePath,
         for (int i = 0; i < 7; ++i) {
             QRect r(cx[i], y, cx[i + 1] - cx[i] - 4, rowH);
             int align = (i < 2) ? Qt::AlignLeft : Qt::AlignRight;
-            p.drawText(r, align | Qt::AlignVCenter, cells.value(i));
+            p.drawText(r, align | Qt::AlignVCenter,
+                       p.fontMetrics().elidedText(cells.value(i),
+                           (i < 2) ? Qt::ElideRight : Qt::ElideLeft, r.width()));
         }
         y += rowH;
     };
@@ -67,7 +85,7 @@ bool BillPdfExporter::exportBill(const Bill& bill, const std::string& filePath,
     p.drawText(430, y, QString("Date: %1  %2").arg(QString::fromStdString(bill.date),
                                                     QString::fromStdString(bill.time)));
     y += rowH;
-    p.drawText(left, y, QString("Customer: %1").arg(QString::fromStdString(bill.customerName)));
+    p.drawText(left, y, QString("Customer: %1").arg(readableName(bill.customerName)));
     p.drawText(430, y, QString("Order ID: %1").arg(QString::fromStdString(bill.orderId)));
     y += rowH;
     p.drawText(left, y, QString("Status: %1").arg(QString::fromStdString(bill.status)));
@@ -89,7 +107,7 @@ bool BillPdfExporter::exportBill(const Bill& bill, const std::string& filePath,
         }
         double lineTotal = (l.unitPrice - l.discountPerUnit + l.taxPerUnit) * l.quantity;
         drawRow({ QString::fromStdString(l.acronym), QString::fromStdString(l.barcode),
-                  money(l.quantity), money(l.unitPrice), money(l.discount()),
+                  qty(l.quantity), money(l.unitPrice), money(l.discount()),
                   money(l.taxPerUnit * l.quantity), money(lineTotal) }, normal);
     }
     p.drawLine(left, y, right, y);
