@@ -7,14 +7,18 @@
 #include <QDoubleSpinBox>
 #include <string>
 #include "data/IProductRepository.h"
+#include "data/ISeasonRepository.h"
 #include "data/OrderRepository.h"
 #include "data/OrderDetailRepository.h"
 #include "data/BillRepository.h"
+#include "data/BillDetailRepository.h"
+#include "data/ApprovalRepository.h"
 #include "services/OrderService.h"
 
 class QLineEdit;
 class QTableWidget;
 class QLabel;
+class QPushButton;
 
 class CashierWindow : public QWidget
 {
@@ -23,9 +27,13 @@ class CashierWindow : public QWidget
 public:
     CashierWindow(IProductRepository& products, OrderRepository& orders,
                   OrderDetailRepository& orderDetails, BillRepository& bills,
-                  QWidget* parent = nullptr);
+                  BillDetailRepository& billDetails, ISeasonRepository& seasons,
+                  ApprovalRepository& approvals,QWidget* parent = nullptr);
 
     bool eventFilter(QObject* watched, QEvent* event) override;
+    
+    // Opens a held or paid order in this window. OrderListWindow calls it.
+    bool startEdit(const std::string& orderId);
 
 private slots:
     void onAddProduct();
@@ -36,6 +44,7 @@ private slots:
     void onResumeOrder();
     void onCancelOrder();
     void onBack();
+    void onEditExisting();
 
 private:
     void refreshTable();
@@ -48,17 +57,28 @@ private:
     void onQuantitySpin(const std::string& barcode, double value, QDoubleSpinBox* spin);
     bool askBarcode(std::string& barcode);
     void showProduct(const Product& p);
+    void setEditMode(bool on);
 
     IProductRepository& products;
     OrderRepository& orders;
     OrderDetailRepository& orderDetails;
     BillRepository& bills;
-    OrderService service;
+    BillDetailRepository& billDetails; 
+    ISeasonRepository& seasons;
+    ApprovalRepository& approvals;
+    OrderService service;               
+    std::string editingOrderId;  // "" = normal order, else the paid order being edited
 
     QLineEdit* nameEdit;
     QLineEdit* contactEdit;
     QTableWidget* table;
     QLabel* totalsLabel;
+    QLabel* subtitle;
+    QPushButton* billButton;
+    QPushButton* holdButton;
+    QPushButton* resumeButton;
+    QPushButton* cancelButton;
+    QPushButton* editExistingButton;
 };
 
 #endif

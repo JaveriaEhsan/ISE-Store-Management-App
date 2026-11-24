@@ -7,6 +7,9 @@
 #include "data/OrderRepository.h"
 #include "data/OrderDetailRepository.h"
 #include "data/BillRepository.h"
+#include "data/BillDetailRepository.h"
+#include "data/ApprovalRepository.h"
+#include "data/SeasonRepository.h"
 #include "gui/mainwindow.h"
 using namespace std;
 
@@ -40,9 +43,13 @@ int main(int argc, char* argv[])
     OrderRepository orders;
     OrderDetailRepository orderDetails;
     BillRepository bills;
+    BillDetailRepository billDetails;
+    SeasonRepository seasons;
+    ApprovalRepository approvals;
+    seasons.load();
 
     // 4. give them all to the main window
-    MainWindow window(products, orders, orderDetails, bills);
+    MainWindow window(products, orders, orderDetails, bills, billDetails, seasons, approvals);
     window.show();
     return app.exec();
 }

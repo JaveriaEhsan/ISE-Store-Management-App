@@ -4,6 +4,7 @@
 #include "scandialog.h"
 #include "productdialog.h"
 #include "heldordersdialog.h"
+#include "orderlistwindow.h"
 #include "models/order.h"
 #include <algorithm>
 #include <QLineEdit>
@@ -38,9 +39,11 @@ static QString buttonStyle()
 
 CashierWindow::CashierWindow(IProductRepository& products, OrderRepository& orders,
                              OrderDetailRepository& orderDetails, BillRepository& bills,
-                             QWidget* parent)
+                             BillDetailRepository& billDetails, ISeasonRepository& seasons,
+                             ApprovalRepository& approvals, QWidget* parent)
     : QWidget(parent), products(products), orders(orders),
-      orderDetails(orderDetails), bills(bills)
+      orderDetails(orderDetails), bills(bills), 
+      billDetails(billDetails), seasons(seasons), approvals(approvals)
 {
     setWindowTitle("SmartPOS - Cashier");
     resize(950, 620);
@@ -82,7 +85,7 @@ CashierWindow::CashierWindow(IProductRepository& products, OrderRepository& orde
     brandRow->addSpacing(10);
     brandRow->addWidget(badge);
 
-    QLabel* subtitle = new QLabel("New Order", header);
+    subtitle = new QLabel("New Order", header);
     subtitle->setStyleSheet("color: white; font-size: 17px;");
 
     headerLayout->addLayout(brandRow);
@@ -106,16 +109,19 @@ CashierWindow::CashierWindow(IProductRepository& products, OrderRepository& orde
     QPushButton* addButton = new QPushButton("Add Product to Bill", content);
     QPushButton* descButton = new QPushButton("Description", content);
     QPushButton* removeButton = new QPushButton("Remove Item", content);
-    QPushButton* resumeButton = new QPushButton("Resume Held Order", content);
+    editExistingButton = new QPushButton("Edit Existing Order", content);
+    resumeButton = new QPushButton("Resume Held Order", content);
     addButton->setStyleSheet(buttonStyle());
     descButton->setStyleSheet(buttonStyle());
     removeButton->setStyleSheet(buttonStyle());
+    editExistingButton->setStyleSheet(buttonStyle());
     resumeButton->setStyleSheet(buttonStyle());
 
     QHBoxLayout* itemButtons = new QHBoxLayout();
     itemButtons->addWidget(addButton);
     itemButtons->addWidget(descButton);
     itemButtons->addWidget(removeButton);
+    itemButtons->addWidget(editExistingButton);
     itemButtons->addWidget(resumeButton);
 
     table = new QTableWidget(0, 7, content);
@@ -134,9 +140,9 @@ CashierWindow::CashierWindow(IProductRepository& products, OrderRepository& orde
     totalsLabel = new QLabel(content);
     totalsLabel->setTextFormat(Qt::RichText);
 
-    QPushButton* billButton = new QPushButton("Generate Bill", content);
-    QPushButton* holdButton = new QPushButton("Hold Order", content);
-    QPushButton* cancelButton = new QPushButton("Cancel Order", content);
+    billButton = new QPushButton("Generate Bill", content);
+    holdButton = new QPushButton("Hold Order", content);
+    cancelButton = new QPushButton("Cancel Order", content);
     QHBoxLayout* bottom = new QHBoxLayout();
     bottom->addWidget(billButton);
     bottom->addWidget(holdButton);
@@ -165,6 +171,7 @@ CashierWindow::CashierWindow(IProductRepository& products, OrderRepository& orde
     connect(billButton, &QPushButton::clicked, this, &CashierWindow::onGenerateBill);
     connect(holdButton, &QPushButton::clicked, this, &CashierWindow::onHoldOrder);
     connect(cancelButton, &QPushButton::clicked, this, &CashierWindow::onCancelOrder);
+    connect(editExistingButton, &QPushButton::clicked, this, &CashierWindow::onEditExisting);
 
     refreshTable();
 }
@@ -220,7 +227,7 @@ void CashierWindow::refreshTable()
             if (products.findByBarcode(it.barcode, p))
             {
                 isCount = (p.getUnit() == "count");
-                maxQty = p.getQuantity();
+                maxQty = editingOrderId.empty() ? p.getQuantity() : 100000;   // the service checks edits
             }
             double minQty = isCount ? 1.0 : 0.01;
 
@@ -246,20 +253,36 @@ void CashierWindow::refreshTable()
 
 void CashierWindow::showTotals()
 {
-    BillTotals t = service.getTotals();   // all arithmetic stays in BillCalculator
+    double seasonal = service.currentSeasonalPercent(seasons);
+    BillTotals t = service.getTotals(seasonal, 0);      // special discount is chosen in the payment dialog
+
+    QString editInfo;
+    double oldPayable = 0;
+    if (!editingOrderId.empty() && service.editedBillPayable(bills, oldPayable))
+    {
+        double diff = t.totalPayable - oldPayable;
+        editInfo = QString("<br>Old bill: %1 &nbsp;&nbsp; %2")
+            .arg(oldPayable, 0, 'f', 2)
+            .arg(diff >= 0 ? QString("<b>Collect: %1</b>").arg(diff, 0, 'f', 2)
+                           : QString("<b>Refund: %1</b>").arg(-diff, 0, 'f', 2));
+    }
+
     totalsLabel->setText(
         QString("Without tax: %1 &nbsp;&nbsp; Discount: %2 &nbsp;&nbsp; Tax: %3<br>"
                 "<span style='font-size:22px; font-weight:bold; color:#1f3a5f;'>"
-                "PAYABLE: %4 PKR</span>")
+                "PAYABLE: %4 PKR</span>%5")
             .arg(t.totalWithoutTax, 0, 'f', 2)
             .arg(t.totalDiscount, 0, 'f', 2)
             .arg(t.totalTax, 0, 'f', 2)
-            .arg(t.totalPayable, 0, 'f', 2));
+            .arg(t.totalPayable, 0, 'f', 2)
+            .arg(editInfo));
 }
 
 void CashierWindow::resetScreen()
 {
     service.clear();
+    editingOrderId.clear();
+    setEditMode(false);
     nameEdit->clear();
     contactEdit->clear();
     refreshTable();
@@ -343,7 +366,8 @@ void CashierWindow::onBack()
             return;
         }
     }
-    close();       // the main window reappears (see mainwindow.cpp)
+    resetScreen();
+    close();  // the main window reappears
 }
 
 void CashierWindow::onAddProduct()
@@ -465,18 +489,39 @@ void CashierWindow::onGenerateBill()
     string name, contact;
     if (!readCustomer(name, contact)) return;
 
-    PaymentDialog paymentDialog(name, contact, this);
+    double seasonal = service.currentSeasonalPercent(seasons);
+    PaymentDialog paymentDialog(name, contact, service.getItems(), seasonal, this);
+
+    if (!editingOrderId.empty())
+    {
+        double oldPayable = 0;
+        if (!service.editedBillPayable(bills, oldPayable))
+        {
+            QMessageBox::critical(this, "Edit order",
+                "The old bill of this order was not found. The edit cannot be saved.");
+            return;
+        }
+        paymentDialog.setEditMode(oldPayable);
+    }
+
     if (paymentDialog.exec() != QDialog::Accepted) return;
-    CheckoutInfo info = paymentDialog.info();
+    CheckoutInfo info = paymentDialog.info();     // the dialog already set the seasonal percent
 
     CheckoutResult result;
     string error;
-    if (!service.checkout(info, products, orders, orderDetails, bills, result, error))
+    bool ok = service.checkout(info, products, orders, orderDetails,
+                               bills, billDetails, result, error, &approvals);
+    bool saved = !result.bill.billId.empty();
+
+    if (!ok && !saved)          // nothing was saved: stay on this screen
     {
-        QMessageBox::critical(this, "Could not generate the bill",
-                              QString::fromStdString(error));
+        QMessageBox::critical(this, "Could not generate the bill", QString::fromStdString(error));
         refreshTable();
         return;
+    }
+    if (!ok && saved)           // saved, but stock, old bill or approval update failed
+    {
+        QMessageBox::warning(this, "Warning", QString::fromStdString(error));
     }
 
     BillDialog billDialog(result, this);
@@ -553,10 +598,87 @@ void CashierWindow::onResumeOrder()
 
 void CashierWindow::onCancelOrder()
 {
+    if (!editingOrderId.empty())
+    {
+        if (QMessageBox::question(this, "Cancel edit",
+                "Discard the changes to order " + QString::fromStdString(editingOrderId) +
+                "?\nThe order and its bill stay as they were.") == QMessageBox::Yes)
+            resetScreen();
+        return;
+    }
+
     if (service.getItems().empty()) { resetScreen(); return; }
     if (QMessageBox::question(this, "Cancel order", "Remove all items from this order?")
         == QMessageBox::Yes)
         resetScreen();
+}
+
+void CashierWindow::onEditExisting()
+{
+    if (!service.getItems().empty())
+    {
+        QMessageBox::warning(this, "Edit order",
+            "Finish, hold or cancel the current order first.");
+        return;
+    }
+
+    OrderListWindow dialog(orders, approvals, this);
+    if (dialog.exec() != QDialog::Accepted) return;
+
+    startEdit(dialog.selectedOrderId());     // shows its own message if loading fails
+}
+
+void CashierWindow::setEditMode(bool on)
+{
+    billButton->setText(on ? "Save Changes" : "Generate Bill");
+    cancelButton->setText(on ? "Cancel Edit" : "Cancel Order");
+    holdButton->setEnabled(!on);          // a paid order cannot be put on hold
+    resumeButton->setEnabled(!on);
+    editExistingButton->setEnabled(!on);
+    nameEdit->setReadOnly(on);            // only the items can be edited
+    contactEdit->setReadOnly(on);
+    subtitle->setText(on ? "Editing paid order " + QString::fromStdString(editingOrderId)
+                         : QString("New Order"));
+}
+
+bool CashierWindow::startEdit(const string& orderId)
+{
+    if (!service.getItems().empty())
+    {
+        QMessageBox::warning(this, "Edit order", "Finish, hold or cancel the current order first.");
+        return false;
+    }
+
+    Order order;
+    if (!orders.findById(orderId, order))
+    {
+        QMessageBox::warning(this, "Edit order", "Order not found.");
+        return false;
+    }
+
+    string error;
+    // for a paid order the service checks the manager's approval itself
+    if (!service.loadOrderForEdit(orderId, products, orders, orderDetails, approvals, error))
+    {
+        QMessageBox::warning(this, "Edit order", QString::fromStdString(error));
+        return false;
+    }
+    if (!error.empty())     // a held order can load with a warning
+    {
+        QMessageBox::warning(this, "Edit order",
+            "Some items could not be restored:\n" + QString::fromStdString(error));
+    }
+
+    editingOrderId = (order.status == STATUS_PAID) ? orderId : "";
+
+    QString name = QString::fromStdString(order.customerName);
+    name.replace('_', ' ');
+    nameEdit->setText(name);
+    contactEdit->setText(order.customerContact == "-" ? QString()
+                                                      : QString::fromStdString(order.customerContact));
+    setEditMode(!editingOrderId.empty());
+    refreshTable();
+    return true;
 }
 
 // ---------- dialogs ----------

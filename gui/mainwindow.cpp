@@ -38,9 +38,11 @@ static QFrame* makeStatCard(QLabel*& valueLabel, const QString& caption, QWidget
 
 MainWindow::MainWindow(IProductRepository& products, OrderRepository& orders,
                        OrderDetailRepository& orderDetails, BillRepository& bills,
-                       QWidget* parent)
+                       BillDetailRepository& billDetails, ISeasonRepository& seasons,
+                       ApprovalRepository& approvals, QWidget* parent)
     : QMainWindow(parent), products(products), orders(orders),
-      orderDetails(orderDetails), bills(bills)
+      orderDetails(orderDetails), bills(bills), billDetails(billDetails),
+      seasons(seasons), approvals(approvals)
 {
     setWindowTitle("Superstore POS");
     resize(900, 600);
@@ -148,11 +150,13 @@ MainWindow::MainWindow(IProductRepository& products, OrderRepository& orders,
 
     connect(cashierButton, &QPushButton::clicked, this, [this]() {
         CashierWindow* w = new CashierWindow(this->products, this->orders,
-                                             this->orderDetails, this->bills);
+                                         this->orderDetails, this->bills,
+                                         this->billDetails, this->seasons,
+                                         this->approvals);
         w->setAttribute(Qt::WA_DeleteOnClose);
         connect(w, &QObject::destroyed, this, [this]() { refreshStats(); show(); });
         hide();
-        w->show();
+        w->show(); 
     });
 
     connect(managerButton, &QPushButton::clicked, this, [this]() {
