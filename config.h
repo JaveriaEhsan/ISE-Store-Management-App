@@ -10,7 +10,8 @@ const std::string ORDER_FILE        = "Order.txt";
 const std::string ORDER_DETAIL_FILE = "OrderDetail.txt";
 const std::string BILL_FILE         = "Bill.txt";
 const std::string BILL_DETAIL_FILE  = "BillDetail.txt";  
-const std::string SEASON_FILE       = "Seasons.txt";     
+const std::string SEASON_FILE       = "Seasons.txt";    
+const std::string APPROVAL_FILE = "Approvals.txt";
 
 // ---------- business rules ----------
 const double MAX_SPECIAL_DISCOUNT_PERCENT = 8.0;   // special discount cap
