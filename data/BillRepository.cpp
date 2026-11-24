@@ -97,6 +97,7 @@ static bool validStatus(const string& status)
 {
     return status == STATUS_PAID
         || status == STATUS_EDITED
+        || status == STATUS_CANCELLED
         || status == STATUS_IN_PROGRESS
         || status == STATUS_ON_HOLD
         || status == STATUS_ARCHIVED;
@@ -156,16 +157,15 @@ bool BillRepository::findCurrentByOrderId(const string& orderId, Bill& result) c
 {
     vector<Bill> bills = findByOrderId(orderId);
 
-    // the newest one that is not "edited" (the file is in saving order)
+    // the newest bill that is neither "edited" nor "cancelled"
     for (size_t i = bills.size(); i > 0; i--)
     {
-        if (bills[i - 1].status != STATUS_EDITED)
+        if (bills[i - 1].status != STATUS_EDITED && bills[i - 1].status != STATUS_CANCELLED)
         {
             result = bills[i - 1];
             return true;
         }
     }
-
     return false;
 }
 
