@@ -50,11 +50,43 @@ static string makeLine(const Order& order)
         << fixText(order.customerContact) << " "
         << order.status << " "
         << toText(order.paymentAmount) << " "
-        << order.paymentMode << " "
+        << fixText(order.paymentMode) << " "     // empty mode is written as -
         << fixText(order.merchant)
         << "#";
 
     return out.str();
+}
+
+// The four allowed order statuses
+static bool validStatus(const string& status)
+{
+    return status == STATUS_IN_PROGRESS
+        || status == STATUS_ON_HOLD
+        || status == STATUS_PAID
+        || status == STATUS_ARCHIVED;
+}
+
+// The allowed payment modes
+static bool validPaymentMode(const string& mode)
+{
+    return mode == PAY_CASH || mode == PAY_CARD || mode == PAY_WALLET;
+}
+
+// Returns "" if the order is fine, otherwise the reason
+static string checkOrder(const Order& order)
+{
+    if (!validStatus(order.status))
+    {
+        return "The status must be in-progress, on-hold, paid or archived.";
+    }
+
+    // an order that is not paid yet may have no payment mode
+    if (order.status == STATUS_PAID && !validPaymentMode(order.paymentMode))
+    {
+        return "The payment mode must be cash, card or wallet.";
+    }
+
+    return "";
 }
 
 vector<Order> OrderRepository::getAll() const
@@ -91,7 +123,6 @@ bool OrderRepository::findById(const string& orderId, Order& result) const
     return false;
 }
 
-// All orders that have this status (for example "on-hold")
 vector<Order> OrderRepository::findByStatus(const string& status) const
 {
     vector<Order> result;
@@ -108,9 +139,14 @@ vector<Order> OrderRepository::findByStatus(const string& status) const
     return result;
 }
 
-// Replaces the line that starts with this order id
-bool OrderRepository::update(const Order& order)
+bool OrderRepository::update(const Order& order, string& error)
 {
+    error = checkOrder(order);
+    if (!error.empty())
+    {
+        return false;
+    }
+
     vector<string> lines;
     bool found = false;
 
@@ -139,12 +175,14 @@ bool OrderRepository::update(const Order& order)
 
     if (!found)
     {
+        error = "No order with this id.";
         return false;
     }
 
     ofstream out(ORDER_FILE, ios::trunc);
     if (!out.is_open())
     {
+        error = "The order file could not be opened.";
         return false;
     }
 
@@ -153,10 +191,15 @@ bool OrderRepository::update(const Order& order)
         out << l << "\n";
     }
 
-    return out.good();
+    if (!out.good())
+    {
+        error = "Writing to the order file failed.";
+        return false;
+    }
+
+    return true;
 }
 
-// Rewrites the file without the lines that start with this order id
 bool OrderRepository::removeById(const string& orderId)
 {
     vector<string> keep;
@@ -172,7 +215,6 @@ bool OrderRepository::removeById(const string& orderId)
                 continue;
             }
 
-            // starts with the id: drop it
             if (line.rfind(orderId + " ", 0) == 0)
             {
                 continue;
@@ -196,15 +238,28 @@ bool OrderRepository::removeById(const string& orderId)
     return out.good();
 }
 
-// Writes one order line at the end of the file
-bool OrderRepository::save(const Order& order)
+bool OrderRepository::save(const Order& order, string& error)
 {
-    ofstream file(ORDER_FILE, ios::app); 
-    if (!file.is_open())
+    error = checkOrder(order);
+    if (!error.empty())
     {
         return false;
     }
 
+    ofstream file(ORDER_FILE, ios::app);
+    if (!file.is_open())
+    {
+        error = "The order file could not be opened.";
+        return false;
+    }
+
     file << makeLine(order) << "\n";
-    return file.good();
+
+    if (!file.good())
+    {
+        error = "Writing to the order file failed.";
+        return false;
+    }
+
+    return true;
 }
