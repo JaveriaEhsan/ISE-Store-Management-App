@@ -5,19 +5,41 @@
 #include <vector>
 #include <string>
 
+// Reads and writes Order.txt (one line for each order)
 class OrderRepository
 {
 public:
-    // Adds one line at the end. Returns false and fills error if the order is not valid.
+    // Adds a new order at the end of the file.
+    // Returns false and puts the reason in error if the order cannot be saved.
     bool save(const Order& order, std::string& error);
 
-    std::vector<Order> getAll() const;
-    bool findById(const std::string& orderId, Order& result) const;
-    std::vector<Order> findByStatus(const std::string& status) const;
-
-    // Rewrites the line of this order id. Returns false and fills error if not valid or not found.
+    // Replaces the line of an existing order.
+    // Returns false and puts the reason in error if the order is not valid or not found.
     bool update(const Order& order, std::string& error);
 
+   // without an error text. Kept so older code still compiles.
+    bool save(const Order& order)
+    {
+        std::string error;
+        return save(order, error);
+    }
+
+    bool update(const Order& order)
+    {
+        std::string error;
+        return update(order, error);
+    }
+
+    // Every order in the file
+    std::vector<Order> getAll() const;
+
+    // Finds one order by its id. Returns false if there is none.
+    bool findById(const std::string& orderId, Order& result) const;
+
+    // Every order with this status, for example "on-hold"
+    std::vector<Order> findByStatus(const std::string& status) const;
+
+    // Deletes the line of this order. Returns false if the file cannot be written.
     bool removeById(const std::string& orderId);
 };
 

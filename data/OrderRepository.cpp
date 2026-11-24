@@ -7,22 +7,17 @@
 
 using namespace std;
 
-// Turns one file line into an Order. Returns false if the line is bad.
+// Reads one line of the file into an Order.
+// Returns false if the line is damaged.
 static bool parseOrder(const string& line, Order& o)
 {
     vector<string> f = splitLine(line);
 
+    // a good line has exactly 9 fields
     if (f.size() != 9)
     {
         return false;
     }
-
-    o.orderId = f[0];
-    o.date = f[1];            // YYYY-MM-DD
-    o.time = f[2];
-    o.customerName = f[3];
-    o.customerContact = f[4];
-    o.status = f[5];
 
     try
     {
@@ -30,15 +25,22 @@ static bool parseOrder(const string& line, Order& o)
     }
     catch (...)
     {
-        o.paymentAmount = 0;
+        return false;       // the amount is not a number, so the line is damaged
     }
 
+    o.orderId = f[0];
+    o.date = f[1];          // the date format is set in DateUtil
+    o.time = f[2];
+    o.customerName = f[3];
+    o.customerContact = f[4];
+    o.status = f[5];
     o.paymentMode = f[7];
     o.merchant = f[8];
     return true;
 }
 
-// Turns an Order into one file line (same format for save and update)
+// Turns an Order into one line of text.
+// save and update both use this, so the format is the same everywhere.
 static string makeLine(const Order& order)
 {
     ostringstream out;
@@ -50,14 +52,21 @@ static string makeLine(const Order& order)
         << fixText(order.customerContact) << " "
         << order.status << " "
         << toText(order.paymentAmount) << " "
-        << fixText(order.paymentMode) << " "     // empty mode is written as -
+        << fixText(order.paymentMode) << " "     // an empty mode is written as -
         << fixText(order.merchant)
         << "#";
 
     return out.str();
 }
 
-// The four allowed order statuses
+// True if the text is empty or has a space.
+// Such a value would move the other fields in the line.
+static bool badField(const string& text)
+{
+    return text.empty() || text.find(' ') != string::npos;
+}
+
+// True if the status is one of the four allowed ones
 static bool validStatus(const string& status)
 {
     return status == STATUS_IN_PROGRESS
@@ -66,15 +75,26 @@ static bool validStatus(const string& status)
         || status == STATUS_ARCHIVED;
 }
 
-// The allowed payment modes
+// True if the payment mode is cash, card or wallet
 static bool validPaymentMode(const string& mode)
 {
     return mode == PAY_CASH || mode == PAY_CARD || mode == PAY_WALLET;
 }
 
-// Returns "" if the order is fine, otherwise the reason
+// Checks an order before it is written.
+// Returns an empty text if it is fine, otherwise the reason.
 static string checkOrder(const Order& order)
 {
+    if (badField(order.orderId))
+    {
+        return "The order id must not be empty or contain spaces.";
+    }
+
+    if (badField(order.date) || badField(order.time))
+    {
+        return "The order date and time must not be empty or contain spaces.";
+    }
+
     if (!validStatus(order.status))
     {
         return "The status must be in-progress, on-hold, paid or archived.";
@@ -89,6 +109,26 @@ static string checkOrder(const Order& order)
     return "";
 }
 
+// True if the file already has an order with this id
+static bool orderExists(const string& orderId)
+{
+    ifstream in(ORDER_FILE);
+    string line;
+
+    while (getline(in, line))
+    {
+        vector<string> f = splitLine(line);
+
+        // the order id is the first field of the line
+        if (!f.empty() && f[0] == orderId)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 vector<Order> OrderRepository::getAll() const
 {
     vector<Order> result;
@@ -100,7 +140,7 @@ vector<Order> OrderRepository::getAll() const
         Order o;
         if (parseOrder(line, o))
         {
-            result.push_back(o);
+            result.push_back(o);    // damaged lines are skipped
         }
     }
 
@@ -150,6 +190,7 @@ bool OrderRepository::update(const Order& order, string& error)
     vector<string> lines;
     bool found = false;
 
+    // read the whole file, and swap the line of this order
     {
         ifstream file(ORDER_FILE);
         string line;
@@ -161,6 +202,7 @@ bool OrderRepository::update(const Order& order, string& error)
                 continue;
             }
 
+            // the line starts with this order id
             if (line.rfind(order.orderId + " ", 0) == 0)
             {
                 lines.push_back(makeLine(order));
@@ -179,6 +221,7 @@ bool OrderRepository::update(const Order& order, string& error)
         return false;
     }
 
+    // write everything back in one go
     ofstream out(ORDER_FILE, ios::trunc);
     if (!out.is_open())
     {
@@ -204,6 +247,7 @@ bool OrderRepository::removeById(const string& orderId)
 {
     vector<string> keep;
 
+    // keep every line except the one that starts with this order id
     {
         ifstream file(ORDER_FILE);
         string line;
@@ -224,6 +268,7 @@ bool OrderRepository::removeById(const string& orderId)
         }
     }
 
+    // write the kept lines back
     ofstream out(ORDER_FILE, ios::trunc);
     if (!out.is_open())
     {
@@ -243,6 +288,13 @@ bool OrderRepository::save(const Order& order, string& error)
     error = checkOrder(order);
     if (!error.empty())
     {
+        return false;
+    }
+
+    // two orders must never share the same id
+    if (orderExists(order.orderId))
+    {
+        error = "An order with this id already exists.";
         return false;
     }
 
