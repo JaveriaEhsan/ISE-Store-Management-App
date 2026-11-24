@@ -2,14 +2,14 @@
 #include "IdGenerator.h"
 #include "DateUtil.h"
 #include "../config.h"
-#include <sstream>
 #include <cmath>
 #include <map>
+#include <sstream>
 #include <vector>
 
 using namespace std;
 
-// ---------------------------------------------------------------- cart
+//  cart
 
 double OrderService::availableFor(const Product& p) const
 {
@@ -158,7 +158,7 @@ bool OrderService::isValidPaymentMode(const string& mode)
     return mode == PAY_CASH || mode == PAY_CARD || mode == PAY_WALLET;
 }
 
-// ---------------------------------------------------------------- seasons and totals
+//  seasons and totals
 
 double OrderService::currentSeasonalPercent(const ISeasonRepository& seasons) const
 {
@@ -241,7 +241,7 @@ bool OrderService::validate(const CheckoutInfo& info, string& error) const
     return true;
 }
 
-// ---------------------------------------------------------------- building records
+//  building records
 
 Order OrderService::makeOrder(const string& orderId, const string& date, const string& time,
     const CheckoutInfo& info, const BillTotals& t) const
@@ -337,7 +337,7 @@ bool OrderService::saveBill(const Bill& bill, BillRepository& bills,
     return true;
 }
 
-// ---------------------------------------------------------------- checkout
+//  checkout
 
 bool OrderService::checkout(const CheckoutInfo& info,
     IProductRepository& products,
@@ -388,22 +388,32 @@ bool OrderService::checkout(const CheckoutInfo& info,
     r.details = makeDetails(r.order.orderId);
     r.bill = makeBill(ids.nextBillId(), r.order.orderId, r.order.date, r.order.time, info, r.totals);
 
-    // save the new records first
-    if (!orders.save(r.order))
+    // save the new records first. If a step fails, the new records are removed again.
+    string orderError;
+    if (!orders.save(r.order, orderError))
     {
-        error = "Could not save the order.";
+        error = orderError.empty() ? "Could not save the order." : orderError;
         return false;
     }
+
+    bool saved = true;
     for (size_t i = 0; i < r.details.size(); i++)
     {
         if (!orderDetails.save(r.details[i]))
         {
             error = "Could not save the order details.";
-            return false;
+            saved = false;
+            break;
         }
     }
-    if (!saveBill(r.bill, bills, billDetails, error))
+    if (saved && !saveBill(r.bill, bills, billDetails, error))
     {
+        saved = false;
+    }
+    if (!saved)
+    {
+        orders.removeById(r.order.orderId);
+        orderDetails.removeByOrderId(r.order.orderId);
         return false;
     }
 
@@ -455,7 +465,7 @@ bool OrderService::checkout(const CheckoutInfo& info,
     return true;
 }
 
-// ---------------------------------------------------------------- hold and resume
+//  hold and resume
 
 bool OrderService::holdOrder(const string& name, const string& contact,
     OrderRepository& orders, OrderDetailRepository& details,
@@ -479,7 +489,12 @@ bool OrderService::holdOrder(const string& name, const string& contact,
     o.paymentMode = "-";
     o.merchant = "-";
 
-    if (!orders.save(o)) { error = "Could not save the order."; return false; }
+    string orderError;
+    if (!orders.save(o, orderError))
+    {
+        error = orderError.empty() ? "Could not save the order." : orderError;
+        return false;
+    }
 
     for (const BillItem& it : cart)
     {
@@ -488,7 +503,13 @@ bool OrderService::holdOrder(const string& name, const string& contact,
         d.productId = it.productId;
         d.barcode = it.barcode;
         d.quantity = it.quantity;
-        if (!details.save(d)) { error = "Could not save the order items."; return false; }
+        if (!details.save(d))
+        {
+            orders.removeById(orderId);              // no half-saved hold
+            details.removeByOrderId(orderId);
+            error = "Could not save the order items.";
+            return false;
+        }
     }
 
     // this order was resumed earlier: the new record replaces the old one
@@ -540,7 +561,7 @@ bool OrderService::resumeOrder(const string& orderId, IProductRepository& produc
     return true;
 }
 
-// ---------------------------------------------------------------- editing an existing order
+//  editing an existing order
 
 bool OrderService::canEdit(const Order& order, string& reason)
 {
@@ -620,6 +641,23 @@ bool OrderService::loadOrderForEdit(const string& orderId, bool approved,
     return true;
 }
 
+bool OrderService::editedBillPayable(const BillRepository& bills, double& payable) const
+{
+    if (editedOrderId.empty())
+    {
+        return false;
+    }
+
+    Bill b;
+    if (!bills.findCurrentByOrderId(editedOrderId, b))
+    {
+        return false;
+    }
+
+    payable = b.totalPayable;
+    return true;
+}
+
 map<string, double> OrderService::stockDifference(const map<string, double>& before,
     const vector<BillItem>& after)
 {
@@ -673,15 +711,18 @@ bool OrderService::saveEditedOrder(const CheckoutInfo& info, IProductRepository&
     }
 
     BillTotals newTotals = totalsFor(info);
-    double difference = newTotals.totalPayable - oldBill.totalPayable;
+    double difference = calculator.difference(newTotals.totalPayable, oldBill.totalPayable);
     double extra = info.amountReceived;
 
-    if (difference > 0.005 && extra + 1e-9 < difference)
+    if (difference > 0 && !calculator.isEnough(extra, difference))
     {
         error = "The customer must pay at least the difference.";
         return false;
     }
-    if (difference <= 0.005) extra = 0;          // nothing to receive
+    if (difference <= 0)
+    {
+        extra = 0;          // nothing to receive
+    }
 
     // validate() checks "received >= payable", which does not apply to an edit
     CheckoutInfo checkInfo = info;
@@ -693,7 +734,7 @@ bool OrderService::saveEditedOrder(const CheckoutInfo& info, IProductRepository&
 
     // the new bill shows full figures
     CheckoutInfo billInfo = info;
-    billInfo.amountReceived = oldBill.totalPayable + extra;
+    billInfo.amountReceived = calculator.paidAfterEdit(oldBill.totalPayable, extra);
 
     // 1. stock check, before anything is saved
     map<string, double> diff = stockDifference(originalQty, cart);
@@ -739,15 +780,18 @@ bool OrderService::saveEditedOrder(const CheckoutInfo& info, IProductRepository&
     {
         return false;
     }
-    if (!orders.update(r.order))
+
+    string orderError;
+    if (!orders.update(r.order, orderError))
     {
         bills.updateStatus(r.bill.billId, STATUS_EDITED);     // cancel the new bill
-        error = "Could not update the order. The edit was cancelled.";
+        error = "Could not update the order. The edit was cancelled. " + orderError;
         return false;
     }
     if (!orderDetails.replaceForOrder(editedOrderId, r.details))
     {
-        orders.update(editedOrder);                           // put the old order back
+        string restoreError;
+        orders.update(editedOrder, restoreError);             // put the old order back
         bills.updateStatus(r.bill.billId, STATUS_EDITED);     // cancel the new bill
         error = "Could not update the order items. The edit was cancelled.";
         return false;
@@ -793,7 +837,7 @@ bool OrderService::saveEditedOrder(const CheckoutInfo& info, IProductRepository&
     return true;
 }
 
-// ---------------------------------------------------------------- 7-day rule
+// 7-day rule
 
 bool OrderService::canRequestEdit(const Order& order, string& reason)
 {

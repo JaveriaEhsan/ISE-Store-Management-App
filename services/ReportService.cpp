@@ -114,7 +114,8 @@ bool ReportService::cashSales(const string& from, const string& to,
     {
         const Order& o = all[i];
         string key = dateKey(o.date);
-        if (o.status != STATUS_PAID || o.paymentMode != PAY_CASH) continue;
+        bool wasPaid = (o.status == STATUS_PAID || o.status == STATUS_ARCHIVED);
+        if (!wasPaid || o.paymentMode != PAY_CASH) continue;
         if (key.empty() || key < fromKey || key > toKey) continue;
 
         table.rows.push_back({ o.orderId, o.date, o.time,
@@ -171,6 +172,7 @@ ReportTable ReportService::allSales(bool includeEdited) const
     addTotal(t, "Total product discount", product);
     addTotal(t, "Total seasonal discount", seasonal);
     addTotal(t, "Total special discount", special);
+    addTotal(t, "Total discount (all kinds)", product + seasonal + special);
     return t;
 }
 

@@ -25,7 +25,8 @@ struct CheckoutInfo
     std::string status = STATUS_PAID;
     double specialPercent = 0;          // 0 to 8
     double seasonalPercent = 0;         // from currentSeasonalPercent()
-    double amountReceived = 0;          // must be at least the payable amount
+    double amountReceived = 0;          // new order: at least the payable amount.
+    // edit of a paid order: only the EXTRA money taken now (0 if none)
 };
 
 struct CheckoutResult
@@ -34,9 +35,9 @@ struct CheckoutResult
     std::vector<OrderDetail> details;
     Bill bill;
     BillTotals totals;
-    bool editedPaidOrder = false;    // true when a paid order was edited
+    bool editedPaidOrder = false;       // true when a paid order was edited
     std::string replacedBillId;         // the bill this edit replaces ("" if none)
-    double editDifference = 0;
+    double editDifference = 0;          // edit: positive = collected, negative = refunded
 };
 
 class OrderService
@@ -54,11 +55,14 @@ private:
     double availableFor(const Product& p) const;
     BillTotals totalsFor(const CheckoutInfo& info) const;
     bool validate(const CheckoutInfo& info, std::string& error) const;
-    Order makeOrder(const std::string& orderId, const std::string& date, const std::string& time,const CheckoutInfo& info, const BillTotals& t) const;std::vector<OrderDetail> makeDetails(const std::string& orderId) const;
-    Bill makeBill(const std::string& billId, const std::string& orderId,const std::string& date, const std::string& time,const CheckoutInfo& info, const BillTotals& t) const;
-    bool saveBill(const Bill& bill, BillRepository& bills,BillDetailRepository& billDetails, std::string& error) const;
-
-
+    Order makeOrder(const std::string& orderId, const std::string& date, const std::string& time,
+        const CheckoutInfo& info, const BillTotals& t) const;
+    std::vector<OrderDetail> makeDetails(const std::string& orderId) const;
+    Bill makeBill(const std::string& billId, const std::string& orderId,
+        const std::string& date, const std::string& time,
+        const CheckoutInfo& info, const BillTotals& t) const;
+    bool saveBill(const Bill& bill, BillRepository& bills,
+        BillDetailRepository& billDetails, std::string& error) const;
 
 public:
     bool addItem(const Product& product, double quantity, std::string& error);
@@ -70,44 +74,66 @@ public:
     BillTotals getTotals() const;
     // The totals the customer will really pay, with both discounts (use this on screen)
     BillTotals getTotals(double seasonalPercent, double specialPercent = 0) const;
+
     // Highest percentage of the seasons that are active today (0 if none).
     // When ISeasonRepository gets findActiveSeason, this body becomes one call.
     double currentSeasonalPercent(const ISeasonRepository& seasons) const;
 
     // Saves order, details, bill and bill details, then reduces stock.
-    // If a paid order was opened with openForEdit, this saves the edit instead.
-    bool checkout(const CheckoutInfo& info,IProductRepository& products,OrderRepository& orders,OrderDetailRepository& orderDetails,BillRepository& bills,BillDetailRepository& billDetails,CheckoutResult& result,std::string& error);
+    // If a paid order was opened with loadOrderForEdit, this saves the edit instead.
+    bool checkout(const CheckoutInfo& info,
+        IProductRepository& products,
+        OrderRepository& orders,
+        OrderDetailRepository& orderDetails,
+        BillRepository& bills,
+        BillDetailRepository& billDetails,
+        CheckoutResult& result,
+        std::string& error);
 
     static bool isValidStatus(const std::string& status);
     static bool isValidPaymentMode(const std::string& mode);
 
     // Saves the cart as an on-hold order. Stock does not change. Clears the cart.
-    bool holdOrder(const std::string& name, const std::string& contact,OrderRepository& orders, OrderDetailRepository& details,std::string& orderId, std::string& error);
+    bool holdOrder(const std::string& name, const std::string& contact,
+        OrderRepository& orders, OrderDetailRepository& details,
+        std::string& orderId, std::string& error);
 
     // Loads the items of a held order into the cart.
-    bool resumeOrder(const std::string& orderId, IProductRepository& products,OrderDetailRepository& details, std::string& error);
+    bool resumeOrder(const std::string& orderId, IProductRepository& products,
+        OrderDetailRepository& details, std::string& error);
 
     // ----- editing an existing order -----
     // false for archived orders, and for paid orders older than 7 days
     static bool canEdit(const Order& order, std::string& reason);
-   
+
     // only paid orders need a manager's approval
     static bool needsApproval(const Order& order) { return order.status == STATUS_PAID; }
-   
+
     // paid and within PAID_ORDER_EDIT_DAYS days
     static bool canRequestEdit(const Order& order, std::string& reason);
 
     // on-hold / in-progress: same as resumeOrder. paid: needs approved == true.
-    bool loadOrderForEdit(const std::string& orderId, bool approved,IProductRepository& products,OrderRepository& orders, OrderDetailRepository& details,std::string& error);
+    bool loadOrderForEdit(const std::string& orderId, bool approved,
+        IProductRepository& products,
+        OrderRepository& orders, OrderDetailRepository& details,
+        std::string& error);
     bool isEditingPaidOrder() const { return !editedOrderId.empty(); }
+
+    // Total of the bill that the open paid order will replace (for PaymentDialog::setEditMode).
+    // false if no paid order is open or its bill is missing.
+    bool editedBillPayable(const BillRepository& bills, double& payable) const;
+
     // Saves the edit of a paid order. checkout calls this too when a paid order is open.
-    bool saveEditedOrder(const CheckoutInfo& info, IProductRepository& products,OrderRepository& orders, OrderDetailRepository& orderDetails,BillRepository& bills, BillDetailRepository& billDetails,
+    bool saveEditedOrder(const CheckoutInfo& info, IProductRepository& products,
+        OrderRepository& orders, OrderDetailRepository& orderDetails,
+        BillRepository& bills, BillDetailRepository& billDetails,
         CheckoutResult& result, std::string& error);
 
     // How much the stock changes per barcode when an order is edited:
     // positive = take more from the stock, negative = give back.
-    static std::map<std::string, double> stockDifference(const std::map<std::string, double>& before,const std::vector<BillItem>& after);
-    
+    static std::map<std::string, double> stockDifference(
+        const std::map<std::string, double>& before,
+        const std::vector<BillItem>& after);
 };
 
 #endif

@@ -48,7 +48,8 @@ public:
     // paid or archived orders, with the total amount
     ReportTable completedOrders() const;
 
-    // paid cash orders from "from" to "to" (dd-MM-yyyy, both included)
+    // paid (or archived after payment) cash orders from "from" to "to"
+// (yyyy-MM-dd or dd-MM-yyyy, both included)
     bool cashSales(const std::string& from, const std::string& to,
         ReportTable& table, std::string& error) const;
 

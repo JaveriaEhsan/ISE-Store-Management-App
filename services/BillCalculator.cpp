@@ -49,3 +49,12 @@ bool BillCalculator::isEnough(double received, double payable) const
 {
     return round2(received) >= round2(payable);
 }
+double BillCalculator::difference(double newPayable, double oldPayable) const
+{
+    return round2(newPayable - oldPayable);
+}
+
+double BillCalculator::paidAfterEdit(double oldPayable, double extra) const
+{
+    return round2(oldPayable + extra);
+}

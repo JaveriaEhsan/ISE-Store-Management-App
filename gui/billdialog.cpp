@@ -82,7 +82,15 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent)
 
     totals->addRow("Amount received:", new QLabel(money(b.amountReceived), this));
     totals->addRow("Balance returned:", new QLabel(money(b.balanceReturned), this));
+    if (result.editedPaidOrder)
+    {
+        QString changeText;
+        if (result.editDifference > 0)       changeText = "Collected " + money(result.editDifference);
+        else if (result.editDifference < 0)  changeText = "Refunded " + money(qAbs(result.editDifference));
+        else                                 changeText = "Nothing to pay or refund";
 
+        totals->addRow("Change from old bill:", new QLabel(changeText, this));
+    }
     QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
 

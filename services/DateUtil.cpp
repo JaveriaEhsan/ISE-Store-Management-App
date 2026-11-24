@@ -19,6 +19,18 @@ static bool allDigits(const string& s)
     return true;
 }
 
+static bool isLeapYear(int year)
+{
+    return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+}
+
+static int daysInMonth(int month, int year)
+{
+    static const int days[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+    if (month == 2 && isLeapYear(year)) return 29;
+    return days[month - 1];
+}
+
 string makeDate(int day, int month, int year)
 {
     char buffer[16];
@@ -63,10 +75,18 @@ bool parseDate(const string& date, int& day, int& month, int& year)
 
     if (!allDigits(d) || !allDigits(m) || !allDigits(y)) return false;
 
-    year = stoi(y);
-    month = stoi(m);
-    day = stoi(d);
-    return month >= 1 && month <= 12 && day >= 1 && day <= 31;
+    int yy = stoi(y);
+    int mm = stoi(m);
+    int dd = stoi(d);
+
+    if (yy < 1970 || yy > 3000) return false;      // the range the system clock functions support
+    if (mm < 1 || mm > 12) return false;
+    if (dd < 1 || dd > daysInMonth(mm, yy)) return false;   // 31 February is refused
+
+    year = yy;
+    month = mm;
+    day = dd;
+    return true;
 }
 
 string dateKey(const string& date)

@@ -38,6 +38,11 @@ public:
 
     double balance(double received, double payable) const;    // received - payable
     bool isEnough(double received, double payable) const;     // received >= payable
+    // Editing a paid order: new payable - old payable (positive = collect, negative = refund)
+    double difference(double newPayable, double oldPayable) const;
+
+    // What the customer has paid in total after an edit: old payable + extra money taken now
+    double paidAfterEdit(double oldPayable, double extra) const;
 };
 
 #endif

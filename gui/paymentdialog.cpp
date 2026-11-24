@@ -11,6 +11,11 @@
 
 using namespace std;
 
+static QString money(double value)
+{
+    return QString::number(value, 'f', 2);
+}
+
 PaymentDialog::PaymentDialog(const string& customerName,
     const string& customerContact,
     const vector<BillItem>& items,
@@ -44,6 +49,14 @@ PaymentDialog::PaymentDialog(const string& customerName,
 
     payableLabel = new QLabel(this);
     balanceLabel = new QLabel(this);
+    receivedCaption = new QLabel("Amount received:", this);
+    balanceCaption = new QLabel("Balance:", this);
+
+    // these four are only shown when a paid order is edited
+    oldCaption = new QLabel("Old bill total:", this);
+    oldValue = new QLabel(this);
+    differenceCaption = new QLabel("Difference:", this);
+    differenceValue = new QLabel(this);
 
     QFormLayout* form = new QFormLayout();
     form->addRow("Customer:", new QLabel(QString::fromStdString(customerName), this));
@@ -55,8 +68,15 @@ PaymentDialog::PaymentDialog(const string& customerName,
         QString::number(seasonalPercent, 'g', 6) + " %", this));
     form->addRow("Special discount:", specialSpin);
     form->addRow("Payable:", payableLabel);
-    form->addRow("Amount received:", receivedSpin);
-    form->addRow("Balance:", balanceLabel);
+    form->addRow(oldCaption, oldValue);
+    form->addRow(differenceCaption, differenceValue);
+    form->addRow(receivedCaption, receivedSpin);
+    form->addRow(balanceCaption, balanceLabel);
+
+    oldCaption->hide();
+    oldValue->hide();
+    differenceCaption->hide();
+    differenceValue->hide();
 
     QDialogButtonBox* buttons =
         new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
@@ -72,6 +92,24 @@ PaymentDialog::PaymentDialog(const string& customerName,
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
     onModeChanged();
+    onAmountsChanged();
+}
+
+void PaymentDialog::setEditMode(double oldPayableTotal)
+{
+    editMode = true;
+    oldPayable = oldPayableTotal;
+
+    setWindowTitle("Payment - edit paid order");
+    oldValue->setText(money(oldPayable));
+    oldCaption->show();
+    oldValue->show();
+    differenceCaption->show();
+    differenceValue->show();
+
+    receivedCaption->setText("Extra money received:");
+    balanceCaption->setText("Balance returned:");
+
     onAmountsChanged();
 }
 
@@ -100,10 +138,29 @@ void PaymentDialog::onModeChanged()
 void PaymentDialog::onAmountsChanged()
 {
     BillTotals t = currentTotals();
-    payableLabel->setText(QString::number(t.totalPayable, 'f', 2));
+    payableLabel->setText(money(t.totalPayable));
 
-    double balance = calculator.balance(receivedSpin->value(), t.totalPayable);
-    balanceLabel->setText(QString::number(balance, 'f', 2));
+    if (!editMode)
+    {
+        balanceLabel->setText(money(calculator.balance(receivedSpin->value(), t.totalPayable)));
+        return;
+    }
+
+    double difference = calculator.difference(t.totalPayable, oldPayable);
+    if (difference > 0)       differenceValue->setText("Collect " + money(difference));
+    else if (difference < 0)  differenceValue->setText("Refund " + money(qAbs(difference)));
+    else                      differenceValue->setText("Nothing to pay or refund");
+
+    // extra money is only taken when the new total is higher than the old one
+    receivedSpin->setEnabled(difference > 0);
+    if (difference <= 0 && receivedSpin->value() != 0)
+    {
+        receivedSpin->setValue(0);
+    }
+
+    // the same figures the new bill will store
+    double paid = calculator.paidAfterEdit(oldPayable, receivedSpin->value());
+    balanceLabel->setText(money(calculator.balance(paid, t.totalPayable)));
 }
 
 void PaymentDialog::onOk()
@@ -123,7 +180,19 @@ void PaymentDialog::onOk()
         return;
     }
 
-    if (!calculator.isEnough(receivedSpin->value(), currentTotals().totalPayable))
+    BillTotals t = currentTotals();
+
+    if (editMode)
+    {
+        double difference = calculator.difference(t.totalPayable, oldPayable);
+        if (difference > 0 && !calculator.isEnough(receivedSpin->value(), difference))
+        {
+            QMessageBox::warning(this, "Extra money",
+                "The extra money must cover the difference.");
+            return;
+        }
+    }
+    else if (!calculator.isEnough(receivedSpin->value(), t.totalPayable))
     {
         QMessageBox::warning(this, "Amount received",
             "Amount received must be at least the payable amount.");
@@ -143,6 +212,6 @@ CheckoutInfo PaymentDialog::info() const
     i.status = STATUS_PAID;                       // a bill is always paid; hold has its own button
     i.specialPercent = specialSpin->value();
     i.seasonalPercent = seasonalPercent;
-    i.amountReceived = receivedSpin->value();
+    i.amountReceived = receivedSpin->value();     // edit mode: only the extra money
     return i;
 }
