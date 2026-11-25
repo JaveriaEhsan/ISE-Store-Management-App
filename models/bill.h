@@ -7,6 +7,7 @@
 struct BillLine
 {
     std::string acronym;
+    std::string name;
     std::string barcode;
     double unitPrice = 0;         // without tax
     double discountPerUnit = 0;

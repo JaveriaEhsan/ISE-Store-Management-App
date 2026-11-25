@@ -64,6 +64,7 @@ bool OrderService::addItem(const Product& p, double quantity, string& error)
     item.productId = p.getId();
     item.barcode = p.getBarcode();
     item.acronym = p.getAcronym();
+    item.name = p.getName();
     item.unitPrice = p.getPrice();
     item.taxPerUnit = p.getTax();
     item.discountPerUnit = p.getDiscount();
@@ -298,6 +299,7 @@ Bill OrderService::makeBill(const string& billId, const string& orderId,
     {
         BillLine line;
         line.acronym = cart[i].acronym;
+        line.name = cart[i].name;
         line.barcode = cart[i].barcode;
         line.unitPrice = cart[i].unitPrice;
         line.discountPerUnit = cart[i].discountPerUnit;

@@ -11,6 +11,7 @@ struct BillItem
     std::string productId;
     std::string barcode;
     std::string acronym;
+    std::string name;
     double unitPrice = 0;         // without tax
     double taxPerUnit = 0;
     double discountPerUnit = 0;
