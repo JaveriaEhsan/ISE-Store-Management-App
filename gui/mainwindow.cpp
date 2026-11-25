@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "cashierwindow.h"
 #include "managerwindow.h"
+#include "models/approval.h"
 #include <QPushButton>
 #include <QLabel>
 #include <QVBoxLayout>
@@ -36,11 +37,37 @@ static QFrame* makeStatCard(QLabel*& valueLabel, const QString& caption, QWidget
     return card;
 }
 
-MainWindow::MainWindow(IProductRepository& products, OrderRepository& orders,
+// Puts the button text at the top and a small badge label below it
+static QLabel* addBadge(QPushButton* button, const QString& title)
+{
+    button->setText("");              
+
+    QLabel* titleLabel = new QLabel(title, button);
+    titleLabel->setObjectName("buttonTitle");
+    titleLabel->setAlignment(Qt::AlignCenter);
+    titleLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
+
+    QLabel* badge = new QLabel("", button);
+    badge->setObjectName("buttonBadge");
+    badge->setAlignment(Qt::AlignCenter);
+    badge->setAttribute(Qt::WA_TransparentForMouseEvents);
+    badge->hide();                         
+
+    QVBoxLayout* layout = new QVBoxLayout(button);
+    layout->setContentsMargins(0, 8, 0, 8);
+    layout->setSpacing(0);
+    layout->addStretch(1);
+    layout->addWidget(titleLabel);
+    layout->addWidget(badge);
+    layout->addStretch(1);
+    return badge;
+}
+
+MainWindow::MainWindow(IProductRepository& products, ICategoryRepository& categories, OrderRepository& orders,
                        OrderDetailRepository& orderDetails, BillRepository& bills,
                        BillDetailRepository& billDetails, ISeasonRepository& seasons,
                        ApprovalRepository& approvals, QWidget* parent)
-    : QMainWindow(parent), products(products), orders(orders),
+    : QMainWindow(parent), products(products), categories(categories), orders(orders),
       orderDetails(orderDetails), bills(bills), billDetails(billDetails),
       seasons(seasons), approvals(approvals)
 {
@@ -87,14 +114,17 @@ MainWindow::MainWindow(IProductRepository& products, OrderRepository& orders,
     bodyLayout->setContentsMargins(40, 20, 40, 10);
     bodyLayout->setSpacing(20);
 
-    QPushButton* cashierButton = new QPushButton("Cashier", body);
-    QPushButton* managerButton = new QPushButton("Manager", body);
+    cashierButton = new QPushButton("Cashier", body);
+    managerButton = new QPushButton("Manager", body);
     cashierButton->setObjectName("cashierButton");
     managerButton->setObjectName("managerButton");
     cashierButton->setFixedSize(360, 90);
     managerButton->setFixedSize(360, 90);
     cashierButton->setCursor(Qt::PointingHandCursor);
     managerButton->setCursor(Qt::PointingHandCursor);
+
+    cashierBadge = addBadge(cashierButton, "Cashier");
+    managerBadge = addBadge(managerButton, "Manager");
 
     bodyLayout->addStretch(1);
     bodyLayout->addWidget(cashierButton, 0, Qt::AlignHCenter);
@@ -111,6 +141,7 @@ MainWindow::MainWindow(IProductRepository& products, OrderRepository& orders,
     bodyLayout->addLayout(stats);
 
     refreshStats();     // fill in the first numbers
+    refreshBadges();
 
     root->addWidget(body, 1);
 
@@ -144,6 +175,8 @@ MainWindow::MainWindow(IProductRepository& products, OrderRepository& orders,
         #managerButton { background: #3b6fb6; }
         #managerButton:hover { background: #4a82cf; }
         #managerButton:pressed { background: #2f5a96; }
+        #buttonTitle { color: white; font-size: 24px; font-weight: bold; background: transparent; }
+        #buttonBadge { color: #fff3c4; font-size: 13px; font-weight: normal; background: transparent; }
 
         #footer { color: #8a94a3; font-size: 12px; padding: 10px; }
     )");
@@ -154,7 +187,7 @@ MainWindow::MainWindow(IProductRepository& products, OrderRepository& orders,
                                          this->billDetails, this->seasons,
                                          this->approvals);
         w->setAttribute(Qt::WA_DeleteOnClose);
-        connect(w, &QObject::destroyed, this, [this]() { refreshStats(); show(); });
+        connect(w, &QObject::destroyed, this, [this]() { refreshStats(); refreshBadges(); show(); });
         hide();
         w->show(); 
     });
@@ -162,8 +195,11 @@ MainWindow::MainWindow(IProductRepository& products, OrderRepository& orders,
     connect(managerButton, &QPushButton::clicked, this, [this]() {
         ManagerWindow* w = new ManagerWindow();
         w->setRepository(&this->products);
+        w->setCategoryRepository(&this->categories);
+        w->setSeasonRepository(&this->seasons);
+        w->setApprovalRepositories(&this->approvals, &this->orders, &this->orderDetails);
         w->setAttribute(Qt::WA_DeleteOnClose);
-        connect(w, &QObject::destroyed, this, [this]() { refreshStats(); show(); });
+        connect(w, &QObject::destroyed, this, [this]() { refreshStats(); refreshBadges(); show(); });
         hide();
         w->show();
     });
@@ -180,4 +216,15 @@ void MainWindow::refreshStats()
     }
     totalValue->setText(QString::number((int)all.size()));
     lowValue->setText(QString::number(low));
+}
+
+void MainWindow::refreshBadges()
+{
+    int pending = (int)approvals.findByStatus(APPROVAL_PENDING).size();
+    managerBadge->setText(QString("%1 pending bill edits").arg(pending));
+    managerBadge->setVisible(pending > 0);
+
+    int ready = (int)approvals.findByStatus(APPROVAL_APPROVED).size();
+    cashierBadge->setText(QString("%1 approved bill edits").arg(ready));
+    cashierBadge->setVisible(ready > 0);
 }

@@ -10,6 +10,7 @@
 #include "data/BillDetailRepository.h"
 #include "data/ApprovalRepository.h"
 #include "data/SeasonRepository.h"
+#include "data/CategoryRepository.h"
 #include "gui/mainwindow.h"
 using namespace std;
 
@@ -27,6 +28,16 @@ int main(int argc, char* argv[])
             "\n\nStart it from the project folder.");
         return 1;
     }
+
+    CategoryRepository categories(CATEGORY_FILE);
+    // if (!categories.load())
+    // {
+    //     QMessageBox::critical(nullptr, "Category file not found",
+    //         QString("Could not find ") + QString::fromStdString(CATEGORY_FILE) +
+    //         "\n\nThe program was started from:\n" + QDir::currentPath() +
+    //         "\n\nStart it from the project folder.");
+    //     return 1;
+    // }
 
     // 2. tell the user about product lines that were skipped
     if (products.getSkippedCount() > 0)
@@ -49,7 +60,7 @@ int main(int argc, char* argv[])
     seasons.load();
 
     // 4. give them all to the main window
-    MainWindow window(products, orders, orderDetails, bills, billDetails, seasons, approvals);
+    MainWindow window(products, categories, orders, orderDetails, bills, billDetails, seasons, approvals);
     window.show();
     return app.exec();
 }
