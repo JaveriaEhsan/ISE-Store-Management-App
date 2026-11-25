@@ -3,9 +3,18 @@
 #include "productdialog.h"
 #include "addproductdialog.h"
 #include "scandialog.h"
+#include "seasonwindow.h"
+#include "managerapprovaldialog.h"
 #include "../models/product.h"
+#include "../models/approval.h"
+#include "../data/ISeasonRepository.h"
+#include "../data/ApprovalRepository.h"
+#include "../data/OrderRepository.h"
+#include "../data/OrderDetailRepository.h"
+
 #include "../shared.h"
 #include "../barcode/encoder.h"
+
 #include <QWidget>
 #include <QPushButton>
 #include <QLineEdit>
@@ -30,15 +39,17 @@
 #include <QPolygonF>
 #include <QtMath>
 
+#include <string>
+#include <vector>
 using namespace std;
 
 // 6 digits, first digit not zero
-bool validNumber(const QString& number)
+bool validNumber(const QString &number)
 {
     return isvalidInput(number.toStdString());
 }
 
-QImage buildImage(const QString& digits)
+QImage buildImage(const QString &digits)
 {
     string bits = Encode(digits.toStdString());
     if (bits.empty())
@@ -53,7 +64,7 @@ QImage buildImage(const QString& digits)
     {
         if (bits[i] == '1')
             p.fillRect((Quiet_Zone + int(i)) * Bar_Width, 0,
-                Bar_Width, Image_Height, Qt::black);
+                       Bar_Width, Image_Height, Qt::black);
     }
     p.end();
     return img;
@@ -64,15 +75,16 @@ QString barcodeFolder()
     return QDir::current().filePath("barcodes");
 }
 
-QString barcodePath(const QString& number)
+QString barcodePath(const QString &number)
 {
     return QDir(barcodeFolder()).filePath(number + ".png");
 }
 
 
-enum IconType { IconDashboard, IconBarcode, IconCube, IconScan, IconBasket };
+enum IconType { IconDashboard, IconBarcode, IconCube, IconScan, IconBasket,
+                IconSeason, IconApproval };
 
-QPixmap makeIcon(IconType type, const QColor& color, int size)
+QPixmap makeIcon(IconType type, const QColor &color, int size)
 {
     const qreal dpr = 2.0;
     QPixmap pm(int(size * dpr), int(size * dpr));
@@ -108,7 +120,7 @@ QPixmap makeIcon(IconType type, const QColor& color, int size)
         {
             qreal x = m + i * (s - 2 * m) / 6.0;
             QPen bar(color, (i % 2 == 0) ? s / 8.0 : s / 16.0,
-                Qt::SolidLine, Qt::FlatCap);
+                     Qt::SolidLine, Qt::FlatCap);
             p.setPen(bar);
             p.drawLine(QPointF(x, m), QPointF(x, s - m));
         }
@@ -151,7 +163,7 @@ QPixmap makeIcon(IconType type, const QColor& color, int size)
     {
         QPolygonF body;
         body << QPointF(m, s * 0.42) << QPointF(s - m, s * 0.42)
-            << QPointF(s * 0.82, s - m) << QPointF(s * 0.18, s - m);
+             << QPointF(s * 0.82, s - m) << QPointF(s * 0.18, s - m);
         p.drawPolygon(body);
         p.drawLine(QPointF(s * 0.28, s * 0.42), QPointF(s * 0.42, s * 0.16));
         p.drawLine(QPointF(s * 0.72, s * 0.42), QPointF(s * 0.58, s * 0.16));
@@ -160,16 +172,33 @@ QPixmap makeIcon(IconType type, const QColor& color, int size)
         p.drawLine(QPointF(s * 0.60, s * 0.55), QPointF(s * 0.60, s * 0.78));
         break;
     }
+    case IconSeason:
+    {
+        // a percent sign: a slanted line with a small circle at each end
+        qreal r = s * 0.13;
+        p.drawLine(QPointF(s * 0.78, s * 0.20), QPointF(s * 0.22, s * 0.80));
+        p.drawEllipse(QPointF(s * 0.28, s * 0.28), r, r);
+        p.drawEllipse(QPointF(s * 0.72, s * 0.72), r, r);
+        break;
+    }
+    case IconApproval:
+    {
+        // a check mark inside a circle
+        p.drawEllipse(QPointF(s / 2, s / 2), s * 0.38, s * 0.38);
+        p.drawLine(QPointF(s * 0.32, s * 0.52), QPointF(s * 0.45, s * 0.65));
+        p.drawLine(QPointF(s * 0.45, s * 0.65), QPointF(s * 0.70, s * 0.36));
+        break;
+    }
     }
 
     p.end();
     return pm;
 }
 
-QFrame* makeCard(IconType type, const QColor& iconColor,
-    const QString& title, const QString& subtitle)
+QFrame *makeCard(IconType type, const QColor &iconColor,
+                 const QString &title, const QString &subtitle)
 {
-    QFrame* card = new QFrame;
+    QFrame *card = new QFrame;
     card->setObjectName("dashCard");
     card->setMinimumHeight(150);
     card->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -182,18 +211,18 @@ QFrame* makeCard(IconType type, const QColor& iconColor,
         "QLabel { background: transparent; border: none; }"
     );
 
-    QVBoxLayout* lay = new QVBoxLayout(card);
+    QVBoxLayout *lay = new QVBoxLayout(card);
     lay->setContentsMargins(24, 18, 18, 18);
     lay->setSpacing(4);
 
-    QLabel* icon = new QLabel;
+    QLabel *icon = new QLabel;
     icon->setPixmap(makeIcon(type, iconColor, 34));
     icon->setFixedSize(34, 34);
 
-    QLabel* t = new QLabel(title);
+    QLabel *t = new QLabel(title);
     t->setStyleSheet("font-size: 26px; font-weight: bold; color: #172342;");
 
-    QLabel* s = new QLabel(subtitle);
+    QLabel *s = new QLabel(subtitle);
     s->setStyleSheet("font-size: 14px; color: #7A8294;");
 
     lay->addWidget(icon);
@@ -207,43 +236,43 @@ QFrame* makeCard(IconType type, const QColor& iconColor,
 QString primaryButtonStyle()
 {
     return "QPushButton {"
-        "background-color: #1761D1; color: white;"
-        "font-size: 18px; font-weight: bold; border-radius: 9px;"
-        "}"
-        "QPushButton:hover { background-color: #104AA9; }"
-        "QPushButton:disabled { background-color: #A9B8D6; }";
+           "background-color: #1761D1; color: white;"
+           "font-size: 18px; font-weight: bold; border-radius: 9px;"
+           "}"
+           "QPushButton:hover { background-color: #104AA9; }"
+           "QPushButton:disabled { background-color: #A9B8D6; }";
 }
 
 QString secondaryButtonStyle()
 {
     return "QPushButton {"
-        "background-color: #E8ECF4; color: #34415C;"
-        "font-size: 17px; font-weight: bold; border-radius: 9px;"
-        "}"
-        "QPushButton:hover { background-color: #D9E0EF; }";
+           "background-color: #E8ECF4; color: #34415C;"
+           "font-size: 17px; font-weight: bold; border-radius: 9px;"
+           "}"
+           "QPushButton:hover { background-color: #D9E0EF; }";
 }
 
 QString inputStyle()
 {
     return "QLineEdit {"
-        "background-color: #F4F6FA;"
-        "border: 1px solid #D9DEE8;"
-        "border-radius: 8px;"
-        "padding-left: 15px;"
-        "font-size: 17px;"
-        "color: #172342;"
-        "}"
-        "QLineEdit:focus { border: 2px solid #1761D1; }";
+           "background-color: #F4F6FA;"
+           "border: 1px solid #D9DEE8;"
+           "border-radius: 8px;"
+           "padding-left: 15px;"
+           "font-size: 17px;"
+           "color: #172342;"
+           "}"
+           "QLineEdit:focus { border: 2px solid #1761D1; }";
 }
 
 QString panelStyle()
 {
     return "QFrame#panel {"
-        "background-color: white;"
-        "border: 1px solid #E2E6EF;"
-        "border-radius: 14px;"
-        "}"
-        "QLabel { background: transparent; border: none; }";
+           "background-color: white;"
+           "border: 1px solid #E2E6EF;"
+           "border-radius: 14px;"
+           "}"
+           "QLabel { background: transparent; border: none; }";
 }
 
 QString pageHeadingStyle()
@@ -251,7 +280,7 @@ QString pageHeadingStyle()
     return "font-size: 32px; color: #101A35; font-weight: bold;";
 }
 
-ManagerWindow::ManagerWindow(QWidget* parent)
+ManagerWindow::ManagerWindow(QWidget *parent)
     : QMainWindow(parent)
 {
     repository = nullptr;
@@ -280,14 +309,42 @@ ManagerWindow::ManagerWindow(QWidget* parent)
     setupUI();
 }
 
-void ManagerWindow::setRepository(IProductRepository* repo)
+void ManagerWindow::setRepository(IProductRepository *repo)
 {
     repository = repo;
 }
 
-void ManagerWindow::setCategoryRepository(ICategoryRepository* repo)
+void ManagerWindow::setSeasonRepository(ISeasonRepository *repo)
 {
-    categoryRepository = repo;
+    seasonRepository = repo;
+}
+
+void ManagerWindow::setApprovalRepositories(ApprovalRepository *approvals, OrderRepository *orders,
+                                            OrderDetailRepository *orderDetails)
+{
+    approvalRepository = approvals;
+    orderRepository = orders;
+    orderDetailRepository = orderDetails;
+
+    updatePendingCount();       // show how many requests are waiting right now
+}
+
+// "Approvals (2)" when two requests wait for the manager, just "Approvals" when none
+void ManagerWindow::updatePendingCount()
+{
+    if (approvalsButton == nullptr)
+        return;
+
+    QString text = "  Approvals";
+
+    if (approvalRepository != nullptr)
+    {
+        int waiting = (int)approvalRepository->findByStatus(APPROVAL_PENDING).size();
+        if (waiting > 0)
+            text += " (" + QString::number(waiting) + ")";
+    }
+
+    approvalsButton->setText(text);
 }
 
 void ManagerWindow::setupUI()
@@ -296,33 +353,33 @@ void ManagerWindow::setupUI()
     resize(1250, 780);
     setMinimumSize(950, 650);
 
-    QWidget* central = new QWidget(this);
+    QWidget *central = new QWidget(this);
     central->setStyleSheet("background-color: #F4F6FA;");
     setCentralWidget(central);
 
-    QVBoxLayout* mainLayout = new QVBoxLayout(central);
+    QVBoxLayout *mainLayout = new QVBoxLayout(central);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
 
-    QWidget* header = new QWidget;
+    QWidget *header = new QWidget;
     header->setFixedHeight(120);
     header->setStyleSheet("background-color: #07143E;");
 
-    QVBoxLayout* headerLayout = new QVBoxLayout(header);
+    QVBoxLayout *headerLayout = new QVBoxLayout(header);
     headerLayout->setContentsMargins(28, 16, 28, 14);
     headerLayout->setSpacing(6);
 
-    QHBoxLayout* brandLayout = new QHBoxLayout;
+    QHBoxLayout *brandLayout = new QHBoxLayout;
     brandLayout->setSpacing(12);
 
-    QLabel* logoIcon = new QLabel;
+    QLabel *logoIcon = new QLabel;
     logoIcon->setPixmap(makeIcon(IconBasket, Qt::white, 36));
     logoIcon->setFixedSize(36, 36);
 
-    QLabel* logo = new QLabel("SmartPOS");
+    QLabel *logo = new QLabel("SmartPOS");
     logo->setStyleSheet("color: white; font-size: 30px; font-weight: bold;");
 
-    QLabel* managerBadge = new QLabel("Manager");
+    QLabel *managerBadge = new QLabel("Manager");
     managerBadge->setAlignment(Qt::AlignCenter);
     managerBadge->setFixedSize(100, 34);
     managerBadge->setStyleSheet(
@@ -334,7 +391,7 @@ void ManagerWindow::setupUI()
     );
 
     // Back button: closes this window, the main window shows again
-    QPushButton* backButton = new QPushButton("< Back", this);
+    QPushButton *backButton = new QPushButton("< Back", this);
     backButton->setFixedSize(90, 34);
     backButton->setCursor(Qt::PointingHandCursor);
     backButton->setStyleSheet(
@@ -358,7 +415,7 @@ void ManagerWindow::setupUI()
 
     connect(backButton, &QPushButton::clicked, this, &QWidget::close);
 
-    QLabel* subtitle = new QLabel("Store Management Dashboard");
+    QLabel *subtitle = new QLabel("Store Management Dashboard");
     subtitle->setStyleSheet("color: white; font-size: 17px;");
 
     headerLayout->addLayout(brandLayout);
@@ -382,7 +439,7 @@ void ManagerWindow::createSidebar()
     sidebar->setFixedWidth(300);
     sidebar->setStyleSheet("background-color: #0A1F6B;");
 
-    QVBoxLayout* sideLayout = new QVBoxLayout(sidebar);
+    QVBoxLayout *sideLayout = new QVBoxLayout(sidebar);
     sideLayout->setContentsMargins(18, 28, 18, 20);
     sideLayout->setSpacing(14);
 
@@ -390,17 +447,22 @@ void ManagerWindow::createSidebar()
     barcodesButton = new QPushButton("  View Barcode");
     inventoryButton = new QPushButton("  Inventory");
     productScanButton = new QPushButton("  Product Scan");
+    seasonsButton = new QPushButton("  Seasons");
+    approvalsButton = new QPushButton("  Approvals");
 
     dashboardButton->setIcon(QIcon(makeIcon(IconDashboard, Qt::white, 26)));
     barcodesButton->setIcon(QIcon(makeIcon(IconBarcode, Qt::white, 26)));
     inventoryButton->setIcon(QIcon(makeIcon(IconCube, Qt::white, 26)));
     productScanButton->setIcon(QIcon(makeIcon(IconScan, Qt::white, 26)));
+    seasonsButton->setIcon(QIcon(makeIcon(IconSeason, Qt::white, 26)));
+    approvalsButton->setIcon(QIcon(makeIcon(IconApproval, Qt::white, 26)));
 
-    QPushButton* buttons[] = {
-        dashboardButton, barcodesButton, inventoryButton, productScanButton
+    QPushButton *buttons[] = {
+        dashboardButton, barcodesButton, inventoryButton, productScanButton,
+        seasonsButton, approvalsButton
     };
 
-    for (QPushButton* button : buttons)
+    for (QPushButton *button : buttons)
     {
         button->setIconSize(QSize(26, 26));
         button->setMinimumHeight(52);
@@ -430,13 +492,17 @@ void ManagerWindow::createSidebar()
     bodyLayout->addWidget(sidebar);
 
     connect(dashboardButton, &QPushButton::clicked,
-        this, &ManagerWindow::showDashboard);
+            this, &ManagerWindow::showDashboard);
     connect(barcodesButton, &QPushButton::clicked,
-        this, &ManagerWindow::showBarcodes);
+            this, &ManagerWindow::showBarcodes);
     connect(inventoryButton, &QPushButton::clicked,
-        this, &ManagerWindow::showInventory);
+            this, &ManagerWindow::showInventory);
     connect(productScanButton, &QPushButton::clicked,
-        this, &ManagerWindow::showProductScan);
+            this, &ManagerWindow::showProductScan);
+    connect(seasonsButton, &QPushButton::clicked,
+            this, &ManagerWindow::showSeasons);
+    connect(approvalsButton, &QPushButton::clicked,
+            this, &ManagerWindow::showApprovals);
 }
 
 void ManagerWindow::createMainContent()
@@ -444,7 +510,7 @@ void ManagerWindow::createMainContent()
     mainContent = new QWidget;
     mainContent->setStyleSheet("background-color: #F4F6FA;");
 
-    QVBoxLayout* contentLayout = new QVBoxLayout(mainContent);
+    QVBoxLayout *contentLayout = new QVBoxLayout(mainContent);
     contentLayout->setContentsMargins(34, 28, 34, 25);
 
     pages = new QStackedWidget;
@@ -461,67 +527,67 @@ void ManagerWindow::createMainContent()
     pages->setCurrentWidget(dashboardPage);
 }
 
-QWidget* ManagerWindow::createDashboardPage()
+QWidget *ManagerWindow::createDashboardPage()
 {
-    QWidget* page = new QWidget;
-    QVBoxLayout* layout = new QVBoxLayout(page);
+    QWidget *page = new QWidget;
+    QVBoxLayout *layout = new QVBoxLayout(page);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(18);
 
-    QLabel* welcome = new QLabel("Welcome, Manager");
+    QLabel *welcome = new QLabel("Welcome, Manager");
     welcome->setStyleSheet(pageHeadingStyle());
 
-    QLabel* description = new QLabel("Manage your store operations");
+    QLabel *description = new QLabel("Manage your store operations");
     description->setStyleSheet("font-size: 17px; color: #606878;");
 
     layout->addWidget(welcome);
     layout->addWidget(description);
 
-    QHBoxLayout* cardsLayout = new QHBoxLayout;
+    QHBoxLayout *cardsLayout = new QHBoxLayout;
     cardsLayout->setSpacing(22);
 
     productsCard = makeCard(IconCube, QColor("#1761D1"),
-        "Products", "Inventory");
+                            "Products", "Inventory");
     barcodeCard = makeCard(IconBarcode, QColor("#15952C"),
-        "Barcode", "Viewer");
+                           "Barcode", "Viewer");
 
     cardsLayout->addWidget(productsCard);
     cardsLayout->addWidget(barcodeCard);
     layout->addLayout(cardsLayout);
 
-    QFrame* quick = new QFrame;
+    QFrame *quick = new QFrame;
     quick->setObjectName("panel");
     quick->setStyleSheet(panelStyle());
 
-    QVBoxLayout* quickLayout = new QVBoxLayout(quick);
+    QVBoxLayout *quickLayout = new QVBoxLayout(quick);
     quickLayout->setContentsMargins(24, 22, 24, 22);
     quickLayout->setSpacing(12);
 
-    QLabel* quickHeading = new QLabel("Quick Actions");
+    QLabel *quickHeading = new QLabel("Quick Actions");
     quickHeading->setStyleSheet(
         "font-size: 24px; font-weight: bold; color: #172342;");
 
-    QPushButton* addProduct = new QPushButton("Add New Product");
+    QPushButton *addProduct = new QPushButton("Add New Product");
     addProduct->setStyleSheet(primaryButtonStyle());
 
-    QPushButton* updateProduct = new QPushButton("Update Price / Quantity");
+    QPushButton *updateProduct = new QPushButton("Update Price / Quantity");
     updateProduct->setStyleSheet(secondaryButtonStyle());
 
-    QPushButton* openBarcodes = new QPushButton("View Barcode");
+    QPushButton *openBarcodes = new QPushButton("View Barcode");
     openBarcodes->setStyleSheet(secondaryButtonStyle());
 
-    QPushButton* openInventory = new QPushButton("Inventory");
+    QPushButton *openInventory = new QPushButton("Inventory");
     openInventory->setStyleSheet(secondaryButtonStyle());
 
-    QPushButton* openScan = new QPushButton("View product by scanning");
+    QPushButton *openScan = new QPushButton("View product by scanning");
     openScan->setStyleSheet(secondaryButtonStyle());
 
-    QPushButton* actionButtons[] = {
+    QPushButton *actionButtons[] = {
         addProduct, updateProduct, openBarcodes, openInventory, openScan
     };
 
     quickLayout->addWidget(quickHeading);
-    for (QPushButton* b : actionButtons)
+    for (QPushButton *b : actionButtons)
     {
         b->setMinimumHeight(48);
         b->setCursor(Qt::PointingHandCursor);
@@ -532,41 +598,41 @@ QWidget* ManagerWindow::createDashboardPage()
     layout->addStretch();
 
     connect(addProduct, &QPushButton::clicked,
-        this, &ManagerWindow::showAddProduct);
+            this, &ManagerWindow::showAddProduct);
     connect(updateProduct, &QPushButton::clicked,
-        this, &ManagerWindow::showUpdateProduct);
+            this, &ManagerWindow::showUpdateProduct);
     connect(openBarcodes, &QPushButton::clicked,
-        this, &ManagerWindow::showBarcodes);
+            this, &ManagerWindow::showBarcodes);
     connect(openInventory, &QPushButton::clicked,
-        this, &ManagerWindow::showInventory);
+            this, &ManagerWindow::showInventory);
     connect(openScan, &QPushButton::clicked,
-        this, &ManagerWindow::showProductScan);
+            this, &ManagerWindow::showProductScan);
 
     return page;
 }
 
-QWidget* ManagerWindow::createBarcodePage()
+QWidget *ManagerWindow::createBarcodePage()
 {
-    QWidget* page = new QWidget;
-    QVBoxLayout* layout = new QVBoxLayout(page);
+    QWidget *page = new QWidget;
+    QVBoxLayout *layout = new QVBoxLayout(page);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(18);
 
-    QLabel* heading = new QLabel("View Barcode");
+    QLabel *heading = new QLabel("View Barcode");
     heading->setStyleSheet(pageHeadingStyle());
 
-    QLabel* description = new QLabel(
+    QLabel *description = new QLabel(
         "Enter the 6-digit barcode of a product to see its barcode image");
     description->setStyleSheet("font-size: 17px; color: #606878;");
 
     layout->addWidget(heading);
     layout->addWidget(description);
 
-    QFrame* panel = new QFrame;
+    QFrame *panel = new QFrame;
     panel->setObjectName("panel");
     panel->setStyleSheet(panelStyle());
 
-    QVBoxLayout* panelLayout = new QVBoxLayout(panel);
+    QVBoxLayout *panelLayout = new QVBoxLayout(panel);
     panelLayout->setContentsMargins(24, 22, 24, 22);
     panelLayout->setSpacing(14);
 
@@ -584,7 +650,7 @@ QWidget* ManagerWindow::createBarcodePage()
     viewBarcodeButton->setCursor(Qt::PointingHandCursor);
     viewBarcodeButton->setStyleSheet(primaryButtonStyle());
 
-    QFrame* preview = new QFrame;
+    QFrame *preview = new QFrame;
     preview->setStyleSheet(
         "QFrame {"
         "background-color: #F8FAFD;"
@@ -595,7 +661,7 @@ QWidget* ManagerWindow::createBarcodePage()
     );
     preview->setMinimumHeight(200);
 
-    QVBoxLayout* previewLayout = new QVBoxLayout(preview);
+    QVBoxLayout *previewLayout = new QVBoxLayout(preview);
     previewLayout->setContentsMargins(10, 10, 10, 10);
 
     barcodeImage = new QLabel;
@@ -617,11 +683,11 @@ QWidget* ManagerWindow::createBarcodePage()
     layout->addStretch();
 
     connect(viewBarcodeButton, &QPushButton::clicked,
-        this, &ManagerWindow::viewBarcode);
+            this, &ManagerWindow::viewBarcode);
     connect(productNumberInput, &QLineEdit::returnPressed,
-        this, &ManagerWindow::viewBarcode);
+            this, &ManagerWindow::viewBarcode);
     connect(productNumberInput, &QLineEdit::textChanged,
-        this, &ManagerWindow::productNumberChanged);
+            this, &ManagerWindow::productNumberChanged);
 
     return page;
 }
@@ -634,7 +700,7 @@ void ManagerWindow::resetBarcodePreview()
 }
 
 // Error as soon as 6 digits are typed with a leading zero
-void ManagerWindow::productNumberChanged(const QString& text)
+void ManagerWindow::productNumberChanged(const QString &text)
 {
     if (text.length() == 6 && !validNumber(text))
     {
@@ -751,7 +817,7 @@ void ManagerWindow::showInventory()
 // Add New Product: form -> Product.txt line -> barcode image
 void ManagerWindow::showAddProduct()
 {
-    if (repository == nullptr || categoryRepository == nullptr)
+    if (repository == nullptr)
     {
         QMessageBox::information(
             this, "Add New Product", "Inventory is not connected yet.");
@@ -759,7 +825,7 @@ void ManagerWindow::showAddProduct()
         return;
     }
 
-    AddProductDialog dialog(*repository, *categoryRepository, this);
+    AddProductDialog dialog(*repository, this);
 
     if (dialog.exec() == QDialog::Accepted)
     {
@@ -808,40 +874,40 @@ void ManagerWindow::showUpdateProduct()
     dialog.setWindowTitle("Update Price / Quantity");
     dialog.setMinimumWidth(430);
 
-    QLineEdit* barcodeInput = new QLineEdit;
+    QLineEdit *barcodeInput = new QLineEdit;
     barcodeInput->setPlaceholderText("6-digit barcode");
     barcodeInput->setMaxLength(6);
     barcodeInput->setValidator(new QRegularExpressionValidator(
         QRegularExpression("[0-9]{0,6}"), barcodeInput));
 
-    QLabel* info = new QLabel("Enter the 6-digit barcode of the product.");
+    QLabel *info = new QLabel("Enter the 6-digit barcode of the product.");
     info->setWordWrap(true);
 
-    QDoubleSpinBox* priceBox = new QDoubleSpinBox;
+    QDoubleSpinBox *priceBox = new QDoubleSpinBox;
     priceBox->setRange(0.0, 10000000.0);
     priceBox->setDecimals(2);
     priceBox->setEnabled(false);
 
-    QDoubleSpinBox* addBox = new QDoubleSpinBox;
+    QDoubleSpinBox *addBox = new QDoubleSpinBox;
     addBox->setRange(0.0, 10000000.0);
     addBox->setDecimals(0);
     addBox->setEnabled(false);
 
-    QPushButton* saveButton = new QPushButton("Save");
+    QPushButton *saveButton = new QPushButton("Save");
     saveButton->setEnabled(false);
-    QPushButton* cancelButton = new QPushButton("Cancel");
+    QPushButton *cancelButton = new QPushButton("Cancel");
 
-    QFormLayout* form = new QFormLayout;
+    QFormLayout *form = new QFormLayout;
     form->addRow("Barcode:", barcodeInput);
     form->addRow("", info);
     form->addRow("New unit price (PKR):", priceBox);
     form->addRow("Stock to add:", addBox);
 
-    QHBoxLayout* buttons = new QHBoxLayout;
+    QHBoxLayout *buttons = new QHBoxLayout;
     buttons->addWidget(saveButton);
     buttons->addWidget(cancelButton);
 
-    QVBoxLayout* lay = new QVBoxLayout(&dialog);
+    QVBoxLayout *lay = new QVBoxLayout(&dialog);
     lay->addLayout(form);
     lay->addLayout(buttons);
 
@@ -849,7 +915,7 @@ void ManagerWindow::showUpdateProduct()
     bool hasProduct = false;
 
     connect(barcodeInput, &QLineEdit::textChanged, &dialog,
-        [&](const QString& text)
+        [&](const QString &text)
         {
             hasProduct = false;
             priceBox->setEnabled(false);
@@ -899,11 +965,11 @@ void ManagerWindow::showUpdateProduct()
                 return;
 
             Product updated(found.getId(), found.getBarcode(),
-                found.getAcronym(), found.getName(),
-                found.getUnit(), priceBox->value(),
-                found.getTax(), found.getDiscount(),
-                found.getQuantity() + addBox->value(),
-                found.getBarcodePath(), found.getCategoryId());
+                            found.getAcronym(), found.getName(),
+                            found.getUnit(), priceBox->value(),
+                            found.getTax(), found.getDiscount(),
+                            found.getQuantity() + addBox->value(),
+                            found.getBarcodePath());
 
             if (!repository->update(updated))
             {
@@ -959,5 +1025,42 @@ void ManagerWindow::showProductScan()
         }
     }
 
+    syncSidebarSelection();
+}
+
+// Seasons: add a season, switch it on or off
+void ManagerWindow::showSeasons()
+{
+    if (seasonRepository == nullptr)
+    {
+        QMessageBox::information(
+            this, "Seasons", "Seasons are not connected yet.");
+        syncSidebarSelection();
+        return;
+    }
+
+    SeasonWindow dialog(*seasonRepository, this);
+    dialog.exec();
+
+    syncSidebarSelection();
+}
+
+// Approvals: the cashier asked to edit a paid order, the manager approves or rejects it
+void ManagerWindow::showApprovals()
+{
+    if (approvalRepository == nullptr || orderRepository == nullptr
+        || orderDetailRepository == nullptr)
+    {
+        QMessageBox::information(
+            this, "Approvals", "Approvals are not connected yet.");
+        syncSidebarSelection();
+        return;
+    }
+
+    ManagerApprovalDialog dialog(*approvalRepository, *orderRepository,
+                                 *orderDetailRepository, this);
+    dialog.exec();
+
+    updatePendingCount();        
     syncSidebarSelection();
 }
