@@ -523,8 +523,7 @@ void CashierWindow::onGenerateBill()
     {
         QMessageBox::warning(this, "Warning", QString::fromStdString(error));
     }
-
-    BillDialog billDialog(result, this);
+    BillDialog billDialog(result, this, &products);
     billDialog.exec();
     resetScreen();
 }
