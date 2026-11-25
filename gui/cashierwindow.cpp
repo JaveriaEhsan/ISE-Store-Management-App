@@ -143,6 +143,9 @@ CashierWindow::CashierWindow(IProductRepository& products, OrderRepository& orde
     billButton = new QPushButton("Generate Bill", content);
     holdButton = new QPushButton("Hold Order", content);
     cancelButton = new QPushButton("Cancel Order", content);
+    billButton->setStyleSheet(buttonStyle());
+    holdButton->setStyleSheet(buttonStyle());
+    cancelButton->setStyleSheet(buttonStyle());
     QHBoxLayout* bottom = new QHBoxLayout();
     bottom->addWidget(billButton);
     bottom->addWidget(holdButton);
