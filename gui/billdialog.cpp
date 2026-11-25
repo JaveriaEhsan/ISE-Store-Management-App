@@ -78,11 +78,11 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent,
 
     // ----- lines table -----
     // ----- lines table -----
-    QTableWidget* table = new QTableWidget((int)b.lines.size(), 9, this);
+    QTableWidget* table = new QTableWidget((int)b.lines.size(), 8, this);
 
     table->setHorizontalHeaderLabels(
         { "", "Barcode", "Product", "Qty", "Unit price", "Tax/unit",
-          "Discount/unit", "Seasonal discount", "Total" });
+          "Discount/unit", "Total" });
 
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table->setSelectionMode(QAbstractItemView::NoSelection);
@@ -91,7 +91,6 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent,
 
     tableHeader->setSectionResizeMode(QHeaderView::Fixed);
 
-    // Compact column widths
     table->setColumnWidth(0, 25);
     table->setColumnWidth(1, 62);
     table->setColumnWidth(2, 100);
@@ -99,8 +98,7 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent,
     table->setColumnWidth(4, 65);
     table->setColumnWidth(5, 55);
     table->setColumnWidth(6, 78);
-    table->setColumnWidth(7, 95);
-    table->setColumnWidth(8, 60);
+    table->setColumnWidth(7, 60);
 
     QFont headerFont = tableHeader->font();
     headerFont.setPointSize(8);
@@ -163,9 +161,6 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent,
             new QTableWidgetItem(money(line.discountPerUnit)));
 
         table->setItem((int)i, 7,
-            new QTableWidgetItem(money(lineTotals.seasonalAmount)));
-
-        table->setItem((int)i, 8,
             new QTableWidgetItem(money(lineTotals.totalPayable)));
     }
 
