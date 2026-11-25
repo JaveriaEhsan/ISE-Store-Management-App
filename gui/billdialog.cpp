@@ -86,27 +86,35 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent,
 
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table->setSelectionMode(QAbstractItemView::NoSelection);
-
     QHeaderView* tableHeader = table->horizontalHeader();
 
-    tableHeader->setSectionResizeMode(QHeaderView::Fixed);
-
-    table->setColumnWidth(0, 25);
-    table->setColumnWidth(1, 62);
-    table->setColumnWidth(2, 100);
-    table->setColumnWidth(3, 35);
-    table->setColumnWidth(4, 65);
-    table->setColumnWidth(5, 55);
-    table->setColumnWidth(6, 78);
-    table->setColumnWidth(7, 60);
-
+    tableHeader->setSectionResizeMode(QHeaderView::ResizeToContents);  
+    tableHeader->setSectionResizeMode(2, QHeaderView::Stretch);      
+    tableHeader->setStretchLastSection(false);
+    table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     QFont headerFont = tableHeader->font();
     headerFont.setPointSize(8);
+    headerFont.setBold(true);
     tableHeader->setFont(headerFont);
 
+  
+    tableHeader->setStyleSheet(
+        "QHeaderView::section {"
+        "  font-weight: bold;"
+        "  padding: 4px;"
+        "  background-color: #f0f0f0;"
+        "  border: none;"
+        "  border-bottom: 2px solid #404040;"   
+        "  border-right: 1px solid #c0c0c0;"    
+        "}");
+
+    table->setShowGrid(true);                  
+
     table->verticalHeader()->setVisible(false);
-    table->setMaximumHeight(220);
-    table->setMinimumHeight(120);
+    int h = tableHeader->sizeHint().height() + 2 * table->frameWidth();
+    for (int i = 0; i < table->rowCount(); i++)
+        h += table->rowHeight(i);
+    table->setFixedHeight(qMin(h, 260));   
 
     // Calculate seasonal discount percentage
     BillCalculator calculator;
