@@ -25,6 +25,16 @@ QString readableName(const std::string& name)
     s.replace('_', ' ');
     return s.isEmpty() ? QString("-") : s;
 }
+// "5 %" from a PKR discount amount and the amount it was taken from
+QString percentText(double amount, double base)
+{
+    if (base <= 0 || amount <= 0) return "0 %";
+
+    QString s = QString::number(amount / base * 100.0, 'f', 2);
+    while (s.endsWith('0')) s.chop(1);
+    if (s.endsWith('.')) s.chop(1);
+    return s + " %";
+}
 }
 
 bool BillPdfExporter::exportBill(const Bill& bill, const std::string& filePath,
@@ -65,8 +75,9 @@ bool BillPdfExporter::exportBill(const Bill& bill, const std::string& filePath,
 
     auto drawLabelValue = [&](const QString& label, const QString& value, const QFont& f) {
         p.setFont(f);
-        p.drawText(QRect(430, y, 180, rowH), Qt::AlignLeft | Qt::AlignVCenter, label);
-        p.drawText(QRect(610, y, right - 610, rowH), Qt::AlignRight | Qt::AlignVCenter, value);
+       
+        p.drawText(QRect(430, y, 240, rowH), Qt::AlignLeft | Qt::AlignVCenter, label);
+        p.drawText(QRect(670, y, right - 670, rowH), Qt::AlignRight | Qt::AlignVCenter, value);
         y += rowH;
     };
 
@@ -116,8 +127,11 @@ bool BillPdfExporter::exportBill(const Bill& bill, const std::string& filePath,
     // totals (keep the block together on one page)
     if (y + 8 * rowH > bottom) { writer.newPage(); y = 60; }
     drawLabelValue("Total without tax:", money(bill.totalWithoutTax), normal);
-    drawLabelValue("Seasonal discount:", money(bill.seasonalDiscount), normal);
-    drawLabelValue("Special discount:", money(bill.specialDiscount), normal);
+    const double discountBase = bill.totalWithoutTax - bill.totalDiscount;   // seasonal and special are taken from this
+    drawLabelValue("Seasonal discount (" + percentText(bill.seasonalDiscount, discountBase) + "):",
+        money(bill.seasonalDiscount), normal);
+    drawLabelValue("Special discount (" + percentText(bill.specialDiscount, discountBase) + "):",
+        money(bill.specialDiscount), normal);
     drawLabelValue("Total discount:", money(bill.totalDiscount), normal);
     drawLabelValue("Total tax:", money(bill.totalTax), normal);
     drawLabelValue("Total payable:", money(bill.totalPayable), bold);

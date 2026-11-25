@@ -6,7 +6,10 @@
 #include <QLabel>
 #include <QTableWidget>
 #include <QVBoxLayout>
-
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QPushButton>
+#include "../services/BillPdfExporter.h"      
 using namespace std;
 
 static QString text(const string& s)
@@ -19,6 +22,15 @@ static QString money(double value)
     return QString::number(value, 'f', 2);
 }
 
+static QString percentText(double amount, double base)
+{
+    if (base <= 0 || amount <= 0) return "0 %";
+
+    QString s = QString::number(amount / base * 100.0, 'f', 2);
+    while (s.endsWith('0')) s.chop(1);
+    if (s.endsWith('.')) s.chop(1);
+    return s + " %";
+}
 BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent)
     : QDialog(parent)
 {
@@ -27,7 +39,7 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent)
 
     const Order& o = result.order;
     const Bill& b = result.bill;
-
+    shownBill = b;
     // ----- header -----
     QFormLayout* header = new QFormLayout();
     header->addRow("Order id:", new QLabel(text(o.orderId), this));
@@ -42,7 +54,7 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent)
     // ----- lines table -----
     QTableWidget* table = new QTableWidget((int)b.lines.size(), 5, this);
     table->setHorizontalHeaderLabels(
-        { "Product", "Unit price", "Discount", "Quantity", "Line total" });
+        { "Product", "Unit price", "Discount", "Quantity", "Total" });
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table->setSelectionMode(QAbstractItemView::NoSelection);
     table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
@@ -52,11 +64,12 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent)
     {
         const BillLine& line = b.lines[i];
 
-        // the calculator does the maths (line total without tax, after the product discount)
+       
         BillItem item;
         item.unitPrice = line.unitPrice;
         item.discountPerUnit = line.discountPerUnit;
         item.quantity = line.quantity;
+        item.taxPerUnit = line.taxPerUnit;
         BillTotals lineTotals = calculator.calculate(vector<BillItem>(1, item));
 
         table->setItem((int)i, 0, new QTableWidgetItem(text(line.acronym)));
@@ -70,8 +83,12 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent)
     QFormLayout* totals = new QFormLayout();
     totals->addRow("Total without tax:", new QLabel(money(b.totalWithoutTax), this));
     totals->addRow("Product discounts:", new QLabel(money(b.totalDiscount), this));
-    totals->addRow("Seasonal discount:", new QLabel(money(b.seasonalDiscount), this));
-    totals->addRow("Special discount:", new QLabel(money(b.specialDiscount), this));
+    double discountBase = b.totalWithoutTax - b.totalDiscount;   
+
+    totals->addRow("Seasonal discount (" + percentText(b.seasonalDiscount, discountBase) + "):",
+        new QLabel(money(b.seasonalDiscount), this));
+    totals->addRow("Special discount (" + percentText(b.specialDiscount, discountBase) + "):",
+        new QLabel(money(b.specialDiscount), this));
     totals->addRow("Total tax:", new QLabel(money(b.totalTax), this));
 
     QLabel* payable = new QLabel(money(b.totalPayable), this);
@@ -92,8 +109,9 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent)
         totals->addRow("Change from old bill:", new QLabel(changeText, this));
     }
     QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
+    QPushButton* pdfButton = buttons->addButton("Download PDF", QDialogButtonBox::ActionRole);
+    connect(pdfButton, &QPushButton::clicked, this, &BillDialog::savePdf);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
-
     noteLabel = new QLabel(this);
     QFont noteFont = noteLabel->font();
     noteFont.setBold(true);
@@ -118,4 +136,46 @@ void BillDialog::setNote(const QString& note)
 {
     noteLabel->setText(note);
     noteLabel->setVisible(!note.isEmpty());
+}
+void BillDialog::setOrderBills(const vector<Bill>& bills)
+{
+    orderBills = bills;
+}
+
+void BillDialog::savePdf()
+{
+    QString path = QFileDialog::getSaveFileName(
+        this, "Save bill as PDF",
+        "Bill_" + QString::fromStdString(shownBill.billId) + ".pdf",
+        "PDF files (*.pdf)");
+    if (path.isEmpty())
+    {
+        return;      
+    }
+    if (!path.endsWith(".pdf", Qt::CaseInsensitive))
+    {
+        path += ".pdf";
+    }
+
+    string note;
+    const Bill* previous = nullptr;
+    if (!orderBills.empty())
+    {
+        note = BillPdfExporter::makeNote(shownBill, orderBills);
+        previous = BillPdfExporter::previousBill(shownBill, orderBills);
+    }
+    else
+    {
+        note = noteLabel->text().toStdString();   
+    }
+
+    BillPdfExporter exporter;
+    if (exporter.exportBill(shownBill, path.toStdString(), note, previous))
+    {
+        QMessageBox::information(this, "PDF saved", "The bill was saved to:\n" + path);
+    }
+    else
+    {
+        QMessageBox::warning(this, "PDF failed", "The PDF could not be created. Check the folder and try again.");
+    }
 }

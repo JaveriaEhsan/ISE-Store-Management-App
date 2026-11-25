@@ -3,11 +3,12 @@
 
 #include <QDialog>
 #include <QString>
-#include "../services/OrderService.h"   // CheckoutResult
+#include <vector>
+#include "../services/OrderService.h"  
 
 class QLabel;
 
-// Shows a finished bill. Read only.
+
 class BillDialog : public QDialog
 {
     Q_OBJECT
@@ -15,11 +16,19 @@ class BillDialog : public QDialog
 public:
     BillDialog(const CheckoutResult& result, QWidget* parent = nullptr);
 
-    // A note at the top, for example "EDITED - replaced by bill 000000007"
+   
     void setNote(const QString& note);
+
+   
+    void setOrderBills(const std::vector<Bill>& bills);
+
+private slots:
+    void savePdf();
 
 private:
     QLabel* noteLabel;
+    Bill shownBill;                  
+    std::vector<Bill> orderBills;   
 };
 
 #endif
