@@ -31,7 +31,8 @@ static QString percentText(double amount, double base)
     if (s.endsWith('.')) s.chop(1);
     return s + " %";
 }
-
+// The product name from Product.txt (the file writes spaces as _).
+// Without a repository, or if the product is not found, the acronym is shown.
 static QString productName(const BillLine& line, const IProductRepository* products)
 {
     if (products != nullptr)
@@ -76,6 +77,7 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent,
     header->addRow("Status:", new QLabel(text(b.status), this));
 
     // ----- lines table -----
+    // ----- lines table -----
     QTableWidget* table = new QTableWidget((int)b.lines.size(), 9, this);
 
     table->setHorizontalHeaderLabels(
@@ -89,26 +91,28 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent,
 
     tableHeader->setSectionResizeMode(QHeaderView::Fixed);
 
-    // Set compact column widths
-    table->setColumnWidth(0, 25);    // Row number
-    table->setColumnWidth(1, 62);    // Barcode
-    table->setColumnWidth(2, 100);   // Product
-    table->setColumnWidth(3, 35);    // Quantity
-    table->setColumnWidth(4, 65);    // Unit price
-    table->setColumnWidth(5, 55);    // Tax/unit
-    table->setColumnWidth(6, 78);    // Discount/unit
-    table->setColumnWidth(7, 95);    // Seasonal discount
-    table->setColumnWidth(8, 60);    // Total
+    // Compact column widths
+    table->setColumnWidth(0, 25);
+    table->setColumnWidth(1, 62);
+    table->setColumnWidth(2, 100);
+    table->setColumnWidth(3, 35);
+    table->setColumnWidth(4, 65);
+    table->setColumnWidth(5, 55);
+    table->setColumnWidth(6, 78);
+    table->setColumnWidth(7, 95);
+    table->setColumnWidth(8, 60);
 
-    table->verticalHeader()->setVisible(false);
     QFont headerFont = tableHeader->font();
     headerFont.setPointSize(8);
     tableHeader->setFont(headerFont);
+
+    table->verticalHeader()->setVisible(false);
     table->setMaximumHeight(220);
     table->setMinimumHeight(120);
-    table->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    // the seasonal percent of this bill, worked out by the calculator
+
+    // Calculate seasonal discount percentage
     BillCalculator calculator;
+
     double discountBase = b.totalWithoutTax - b.totalDiscount;
 
     double seasonalPercent = 0;
@@ -117,39 +121,58 @@ BillDialog::BillDialog(const CheckoutResult& result, QWidget* parent,
     {
         seasonalPercent = (b.seasonalDiscount / discountBase) * 100.0;
     }
+
     SeasonalDiscount seasonalRule(seasonalPercent);
+
     vector<const IDiscountRule*> lineRules;
     lineRules.push_back(&seasonalRule);
 
+    // Fill table
     for (size_t i = 0; i < b.lines.size(); i++)
     {
         const BillLine& line = b.lines[i];
 
-        // the calculator does the maths for this line:
-        // total = price - product discount - seasonal discount + tax
         BillItem item;
         item.unitPrice = line.unitPrice;
         item.discountPerUnit = line.discountPerUnit;
         item.quantity = line.quantity;
         item.taxPerUnit = line.taxPerUnit;
-        BillTotals lineTotals = calculator.calculate(vector<BillItem>(1, item), lineRules);
 
-        table->setItem((int)i, 0, new QTableWidgetItem(QString::number(i + 1)));
-        table->setItem((int)i, 1, new QTableWidgetItem(text(line.barcode)));
-        table->setItem((int)i, 2, new QTableWidgetItem(productName(line, products)));
-        table->setItem((int)i, 3, new QTableWidgetItem(QString::number(line.quantity, 'g', 10)));
-        table->setItem((int)i, 4, new QTableWidgetItem(money(line.unitPrice)));
-        table->setItem((int)i, 5, new QTableWidgetItem(money(line.taxPerUnit)));
-        table->setItem((int)i, 6, new QTableWidgetItem(money(line.discountPerUnit)));
-        table->setItem((int)i, 7, new QTableWidgetItem(money(lineTotals.seasonalAmount)));
-        table->setItem((int)i, 8, new QTableWidgetItem(money(lineTotals.totalPayable)));
+        BillTotals lineTotals =
+            calculator.calculate(vector<BillItem>(1, item), lineRules);
+
+        table->setItem((int)i, 0,
+            new QTableWidgetItem(QString::number(i + 1)));
+
+        table->setItem((int)i, 1,
+            new QTableWidgetItem(text(line.barcode)));
+
+        table->setItem((int)i, 2,
+            new QTableWidgetItem(productName(line, products)));
+
+        table->setItem((int)i, 3,
+            new QTableWidgetItem(QString::number(line.quantity, 'g', 10)));
+
+        table->setItem((int)i, 4,
+            new QTableWidgetItem(money(line.unitPrice)));
+
+        table->setItem((int)i, 5,
+            new QTableWidgetItem(money(line.taxPerUnit)));
+
+        table->setItem((int)i, 6,
+            new QTableWidgetItem(money(line.discountPerUnit)));
+
+        table->setItem((int)i, 7,
+            new QTableWidgetItem(money(lineTotals.seasonalAmount)));
+
+        table->setItem((int)i, 8,
+            new QTableWidgetItem(money(lineTotals.totalPayable)));
     }
 
     // ----- totals -----
     QFormLayout* totals = new QFormLayout();
     totals->addRow("Total without tax:", new QLabel(money(b.totalWithoutTax), this));
     totals->addRow("Product discounts:", new QLabel(money(b.totalDiscount), this));
-      
 
     totals->addRow("Seasonal discount (" + percentText(b.seasonalDiscount, discountBase) + "):",
         new QLabel(money(b.seasonalDiscount), this));
@@ -216,7 +239,7 @@ void BillDialog::savePdf()
         "PDF files (*.pdf)");
     if (path.isEmpty())
     {
-        return;      
+        return;
     }
     if (!path.endsWith(".pdf", Qt::CaseInsensitive))
     {
@@ -232,7 +255,7 @@ void BillDialog::savePdf()
     }
     else
     {
-        note = noteLabel->text().toStdString();   
+        note = noteLabel->text().toStdString();
     }
 
     BillPdfExporter exporter;

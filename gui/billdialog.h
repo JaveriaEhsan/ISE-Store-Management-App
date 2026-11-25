@@ -16,7 +16,6 @@ class BillDialog : public QDialog
 public:
     BillDialog(const CheckoutResult& result, QWidget* parent = nullptr,
         const IProductRepository* products = nullptr);
-   
     void setNote(const QString& note);
 
    
