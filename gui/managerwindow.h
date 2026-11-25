@@ -13,9 +13,11 @@ class QFrame;
 class QHBoxLayout;
 class QStackedWidget;
 class ISeasonRepository;
+class ICategoryRepository;
 class ApprovalRepository;
 class OrderRepository;
 class OrderDetailRepository;
+class ReportService;
 
 class ManagerWindow : public QMainWindow
 {
@@ -25,8 +27,10 @@ public:
     explicit ManagerWindow(QWidget *parent = nullptr);
     void setRepository(IProductRepository *repo);
     void setSeasonRepository(ISeasonRepository *repo);
+    void setCategoryRepository(ICategoryRepository *repo);
     void setApprovalRepositories(ApprovalRepository *approvals, OrderRepository *orders,
                                  OrderDetailRepository *orderDetails);
+    void setReportService(ReportService *service);
 
 private slots:
     void viewBarcode();
@@ -40,6 +44,7 @@ private slots:
     void showUpdateProduct();
     void showSeasons();
     void showApprovals();
+    void showReports();
 
 private:
     void setupUI();
@@ -55,9 +60,11 @@ private:
 
     IProductRepository *repository;
     ISeasonRepository *seasonRepository = nullptr;
+    ICategoryRepository *categoryRepository = nullptr;
     ApprovalRepository *approvalRepository = nullptr;
     OrderRepository *orderRepository = nullptr;
     OrderDetailRepository *orderDetailRepository = nullptr;
+    ReportService *reportService = nullptr;
 
     QWidget *sidebar;
     QWidget *mainContent;
@@ -73,6 +80,7 @@ private:
     QPushButton *productScanButton;
     QPushButton *seasonsButton = nullptr;
     QPushButton *approvalsButton = nullptr;
+    QPushButton *reportsButton = nullptr;
 
     QLineEdit *productNumberInput;
     QPushButton *viewBarcodeButton;

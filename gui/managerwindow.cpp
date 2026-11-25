@@ -5,12 +5,15 @@
 #include "scandialog.h"
 #include "seasonwindow.h"
 #include "managerapprovaldialog.h"
+#include "reportswindow.h"
 #include "../models/product.h"
 #include "../models/approval.h"
 #include "../data/ISeasonRepository.h"
 #include "../data/ApprovalRepository.h"
 #include "../data/OrderRepository.h"
 #include "../data/OrderDetailRepository.h"
+#include "../data/ICategoryRepository.h"
+#include "../services/ReportService.h"
 
 #include "../shared.h"
 #include "../barcode/encoder.h"
@@ -82,7 +85,7 @@ QString barcodePath(const QString &number)
 
 
 enum IconType { IconDashboard, IconBarcode, IconCube, IconScan, IconBasket,
-                IconSeason, IconApproval };
+                IconSeason, IconApproval, IconReport };
 
 QPixmap makeIcon(IconType type, const QColor &color, int size)
 {
@@ -189,6 +192,17 @@ QPixmap makeIcon(IconType type, const QColor &color, int size)
         p.drawLine(QPointF(s * 0.45, s * 0.65), QPointF(s * 0.70, s * 0.36));
         break;
     }
+    case IconReport:
+    {
+        // three bars standing on a line
+        qreal base = s - m;
+        qreal bw = s * 0.16;
+        p.drawLine(QPointF(m, base), QPointF(s - m, base));
+        p.drawRect(QRectF(s * 0.20, s * 0.52, bw, base - s * 0.52));
+        p.drawRect(QRectF(s * 0.42, s * 0.28, bw, base - s * 0.28));
+        p.drawRect(QRectF(s * 0.64, s * 0.40, bw, base - s * 0.40));
+        break;
+    }
     }
 
     p.end();
@@ -284,7 +298,6 @@ ManagerWindow::ManagerWindow(QWidget *parent)
     : QMainWindow(parent)
 {
     repository = nullptr;
-
     sidebar = nullptr;
     mainContent = nullptr;
     bodyLayout = nullptr;
@@ -327,6 +340,16 @@ void ManagerWindow::setApprovalRepositories(ApprovalRepository *approvals, Order
     orderDetailRepository = orderDetails;
 
     updatePendingCount();       // show how many requests are waiting right now
+}
+
+void ManagerWindow::setCategoryRepository(ICategoryRepository* repo)
+{
+    categoryRepository = repo;
+}
+
+void ManagerWindow::setReportService(ReportService *service)
+{
+    reportService = service;
 }
 
 // "Approvals (2)" when two requests wait for the manager, just "Approvals" when none
@@ -449,6 +472,7 @@ void ManagerWindow::createSidebar()
     productScanButton = new QPushButton("  Product Scan");
     seasonsButton = new QPushButton("  Seasons");
     approvalsButton = new QPushButton("  Approvals");
+    reportsButton = new QPushButton("  Reports");
 
     dashboardButton->setIcon(QIcon(makeIcon(IconDashboard, Qt::white, 26)));
     barcodesButton->setIcon(QIcon(makeIcon(IconBarcode, Qt::white, 26)));
@@ -456,10 +480,11 @@ void ManagerWindow::createSidebar()
     productScanButton->setIcon(QIcon(makeIcon(IconScan, Qt::white, 26)));
     seasonsButton->setIcon(QIcon(makeIcon(IconSeason, Qt::white, 26)));
     approvalsButton->setIcon(QIcon(makeIcon(IconApproval, Qt::white, 26)));
+    reportsButton->setIcon(QIcon(makeIcon(IconReport, Qt::white, 26)));
 
     QPushButton *buttons[] = {
         dashboardButton, barcodesButton, inventoryButton, productScanButton,
-        seasonsButton, approvalsButton
+        seasonsButton, approvalsButton, reportsButton
     };
 
     for (QPushButton *button : buttons)
@@ -503,6 +528,8 @@ void ManagerWindow::createSidebar()
             this, &ManagerWindow::showSeasons);
     connect(approvalsButton, &QPushButton::clicked,
             this, &ManagerWindow::showApprovals);
+    connect(reportsButton, &QPushButton::clicked,
+            this, &ManagerWindow::showReports);
 }
 
 void ManagerWindow::createMainContent()
@@ -817,7 +844,7 @@ void ManagerWindow::showInventory()
 // Add New Product: form -> Product.txt line -> barcode image
 void ManagerWindow::showAddProduct()
 {
-    if (repository == nullptr)
+    if (repository == nullptr || categoryRepository == nullptr)
     {
         QMessageBox::information(
             this, "Add New Product", "Inventory is not connected yet.");
@@ -825,7 +852,7 @@ void ManagerWindow::showAddProduct()
         return;
     }
 
-    AddProductDialog dialog(*repository, this);
+    AddProductDialog dialog(*repository, *categoryRepository, this);
 
     if (dialog.exec() == QDialog::Accepted)
     {
@@ -1061,6 +1088,23 @@ void ManagerWindow::showApprovals()
                                  *orderDetailRepository, this);
     dialog.exec();
 
-    updatePendingCount();        
+    updatePendingCount();
+    syncSidebarSelection();
+}
+
+// Reports: one report at a time (the window only shows what ReportService gives)
+void ManagerWindow::showReports()
+{
+    if (reportService == nullptr)
+    {
+        QMessageBox::information(
+            this, "Reports", "Reports are not connected yet.");
+        syncSidebarSelection();
+        return;
+    }
+
+    ReportsWindow dialog(*reportService, this);
+    dialog.exec();
+
     syncSidebarSelection();
 }
