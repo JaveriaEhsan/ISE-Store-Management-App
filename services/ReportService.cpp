@@ -142,10 +142,10 @@ ReportTable ReportService::allSales(bool includeEdited) const
 {
     ReportTable t;
     t.title = includeEdited ? "All sales (including edited bills)" : "All sales";
-    t.headers = { "Bill id", "Order id", "Date", "Time", "Customer", "Status", "Payable",
-                  "Product discount", "Seasonal discount", "Special discount" };
+    t.headers = { "Bill id", "Order id", "Date", "Time", "Customer", "Status",
+                  "Seasonal discount", "Special discount", "Payable" };
 
-    double payable = 0, product = 0, seasonal = 0, special = 0;
+    double payable = 0, seasonal = 0, special = 0;
 
     vector<Bill> all = bills.getAll();
     for (size_t i = 0; i < all.size(); i++)
@@ -156,23 +156,21 @@ ReportTable ReportService::allSales(bool includeEdited) const
         if (!live && !(includeEdited && edited)) continue;
 
         t.rows.push_back({ b.billId, b.orderId, b.date, b.time, readable(b.customerName), b.status,
-                           money(b.totalPayable), money(b.totalDiscount),
-                           money(b.seasonalDiscount), money(b.specialDiscount) });
+                           money(b.seasonalDiscount), money(b.specialDiscount),
+                           money(b.totalPayable) });
 
         if (live)   // edited bills are shown on request, but never added to the totals
         {
             payable += b.totalPayable;
-            product += b.totalDiscount;
             seasonal += b.seasonalDiscount;
             special += b.specialDiscount;
         }
     }
 
-    addTotal(t, includeEdited ? "Total sales (live bills only)" : "Total sales", payable);
-    addTotal(t, "Total product discount", product);
     addTotal(t, "Total seasonal discount", seasonal);
     addTotal(t, "Total special discount", special);
-    addTotal(t, "Total discount (all kinds)", product + seasonal + special);
+    addTotal(t, "Total discount (seasonal + special)", seasonal + special);
+    addTotal(t, includeEdited ? "Total sales (live bills only)" : "Total sales", payable);
     return t;
 }
 
