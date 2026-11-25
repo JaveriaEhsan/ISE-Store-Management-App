@@ -6,10 +6,14 @@
 #include <QFont>
 #include <QString>
 #include <QStringList>
+#include <QFile>
+#include <QTextStream>
+#include <QHash>
+#include <QRegularExpression>
 
 namespace {
 QString money(double v) { return QString::number(v, 'f', 2); }
-// count items show no decimals (2), weight items show up to 3 (1.25)
+
 QString qty(double v)
 {
     QString s = QString::number(v, 'f', 3);
@@ -18,21 +22,46 @@ QString qty(double v)
     return s;
 }
 
-// stored names use "_" instead of spaces; an empty name shows "-"
 QString readableName(const std::string& name)
 {
     QString s = QString::fromStdString(name);
     s.replace('_', ' ');
     return s.isEmpty() ? QString("-") : s;
 }
+
+QString percentText(double amount, double base)
+{
+    if (base <= 0 || amount <= 0) return "0 %";
+    QString s = QString::number(amount / base * 100.0, 'f', 2);
+    while (s.endsWith('0')) s.chop(1);
+    if (s.endsWith('.')) s.chop(1);
+    return s + " %";
+}
+
+// product.txt line: id category barcode acronym name type ...
+QHash<QString, QString> loadProductNames(const QString& path)
+{
+    QHash<QString, QString> names;
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) return names;
+    QTextStream in(&f);
+    while (!in.atEnd()) {
+        const QStringList t = in.readLine().split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+        if (t.size() < 5) continue;
+        QString name = t[4];
+        name.replace('_', ' ');
+        names.insert(t[2], name);
+    }
+    return names;
+}
 }
 
 bool BillPdfExporter::exportBill(const Bill& bill, const std::string& filePath,
-                                 const std::string& note,const Bill* previous) const
+                                 const std::string& note, const Bill* previous) const
 {
     QPdfWriter writer(QString::fromStdString(filePath));
     writer.setPageSize(QPageSize(QPageSize::A4));
-    writer.setResolution(100);               // 100 units = 1 inch, A4 is about 827 x 1169
+    writer.setResolution(100);
 
     QPainter p(&writer);
     if (!p.isActive())
@@ -44,16 +73,18 @@ bool BillPdfExporter::exportBill(const Bill& bill, const std::string& filePath,
     const int rowH = 24;
     int y = 60;
 
+    const QHash<QString, QString> productNames = loadProductNames("product.txt");
+
     QFont normal("Helvetica", 10);
     QFont bold("Helvetica", 10, QFont::Bold);
     QFont title("Helvetica", 18, QFont::Bold);
 
-    // column edges: item | barcode | qty | unit | discount | tax | total
-    const int cx[] = { left, 230, 380, 440, 530, 610, 690, right };
+    // Barcode | Product | Qty | Price | Tax | Discount | Seasonal Disc | Total
+    const int cx[] = { left, 150, 300, 350, 425, 495, 565, 655, right };
 
     auto drawRow = [&](const QStringList& cells, const QFont& f) {
         p.setFont(f);
-        for (int i = 0; i < 7; ++i) {
+        for (int i = 0; i < 8; ++i) {
             QRect r(cx[i], y, cx[i + 1] - cx[i] - 4, rowH);
             int align = (i < 2) ? Qt::AlignLeft : Qt::AlignRight;
             p.drawText(r, align | Qt::AlignVCenter,
@@ -61,24 +92,24 @@ bool BillPdfExporter::exportBill(const Bill& bill, const std::string& filePath,
                            (i < 2) ? Qt::ElideRight : Qt::ElideLeft, r.width()));
         }
         y += rowH;
-    };
+    };                                              // <-- yeh closing zaroori hai
 
     auto drawLabelValue = [&](const QString& label, const QString& value, const QFont& f) {
         p.setFont(f);
-        p.drawText(QRect(430, y, 180, rowH), Qt::AlignLeft | Qt::AlignVCenter, label);
-        p.drawText(QRect(610, y, right - 610, rowH), Qt::AlignRight | Qt::AlignVCenter, value);
+        p.drawText(QRect(430, y, 240, rowH), Qt::AlignLeft | Qt::AlignVCenter, label);
+        p.drawText(QRect(670, y, right - 670, rowH), Qt::AlignRight | Qt::AlignVCenter, value);
         y += rowH;
     };
 
     auto header = [&]() {
-        drawRow({ "Item", "Barcode", "Qty", "Unit", "Disc", "Tax", "Total" }, bold);
+        drawRow({ "Barcode", "Product", "Qty", "Price", "Tax", "Discount", "Seasonal Disc", "Total" }, bold);
         p.drawLine(left, y, right, y);
         y += 4;
     };
 
     // title and bill info
     p.setFont(title);
-    p.drawText(left, y + 30, "Bill");
+    p.drawText(left, y + 30, "SmartPOS");
     y += 50;
     p.setFont(normal);
     p.drawText(left, y, QString("Bill ID: %1").arg(QString::fromStdString(bill.billId)));
@@ -98,17 +129,25 @@ bool BillPdfExporter::exportBill(const Bill& bill, const std::string& filePath,
     y += 10;
 
     // lines
+    const double discountBase = bill.totalWithoutTax - bill.totalDiscount;   // seasonal and special are taken from this
+
     header();
     for (const BillLine& l : bill.lines) {
-        if (y + rowH > bottom) {            // simple page break
+        if (y + rowH > bottom) {
             writer.newPage();
             y = 60;
             header();
         }
-        double lineTotal = (l.unitPrice - l.discountPerUnit + l.taxPerUnit) * l.quantity;
-        drawRow({ QString::fromStdString(l.acronym), QString::fromStdString(l.barcode),
-                  qty(l.quantity), money(l.unitPrice), money(l.discount()),
-                  money(l.taxPerUnit * l.quantity), money(lineTotal) }, normal);
+        const QString barcode = QString::fromStdString(l.barcode);
+        const QString product = productNames.value(barcode, QString::fromStdString(l.acronym));
+
+        const double lineBase = (l.unitPrice - l.discountPerUnit) * l.quantity;
+        const double seasonalShare = discountBase > 0 ? bill.seasonalDiscount * lineBase / discountBase : 0.0;
+        const double lineTotal = (l.unitPrice - l.discountPerUnit + l.taxPerUnit) * l.quantity;
+
+        drawRow({ barcode, product, qty(l.quantity), money(l.unitPrice),
+                  money(l.taxPerUnit * l.quantity), money(l.discount()),
+                  money(seasonalShare), money(lineTotal) }, normal);
     }
     p.drawLine(left, y, right, y);
     y += 10;
@@ -116,15 +155,17 @@ bool BillPdfExporter::exportBill(const Bill& bill, const std::string& filePath,
     // totals (keep the block together on one page)
     if (y + 8 * rowH > bottom) { writer.newPage(); y = 60; }
     drawLabelValue("Total without tax:", money(bill.totalWithoutTax), normal);
-    drawLabelValue("Seasonal discount:", money(bill.seasonalDiscount), normal);
-    drawLabelValue("Special discount:", money(bill.specialDiscount), normal);
+    drawLabelValue("Seasonal discount (" + percentText(bill.seasonalDiscount, discountBase) + "):",
+        money(bill.seasonalDiscount), normal);
+    drawLabelValue("Special discount (" + percentText(bill.specialDiscount, discountBase) + "):",
+        money(bill.specialDiscount), normal);
     drawLabelValue("Total discount:", money(bill.totalDiscount), normal);
     drawLabelValue("Total tax:", money(bill.totalTax), normal);
     drawLabelValue("Total payable:", money(bill.totalPayable), bold);
     drawLabelValue("Amount received:", money(bill.amountReceived), normal);
     drawLabelValue("Balance returned:", money(bill.balanceReturned), normal);
-    
-        if (previous) {
+
+    if (previous) {
         const double diff = bill.totalPayable - previous->totalPayable;
         drawLabelValue("Previous bill total:", money(previous->totalPayable), normal);
         if (diff > 0.005)
@@ -134,7 +175,7 @@ bool BillPdfExporter::exportBill(const Bill& bill, const std::string& filePath,
         else
             drawLabelValue("Difference:", money(0), normal);
     }
-    
+
     p.end();
     return true;
 }
