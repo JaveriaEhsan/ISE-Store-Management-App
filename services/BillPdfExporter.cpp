@@ -109,7 +109,7 @@ bool BillPdfExporter::exportBill(const Bill& bill, const std::string& filePath,
 
     // title and bill info
     p.setFont(title);
-    p.drawText(left, y + 30, "Bill");
+    p.drawText(left, y + 30, "SmartPOS");
     y += 50;
     p.setFont(normal);
     p.drawText(left, y, QString("Bill ID: %1").arg(QString::fromStdString(bill.billId)));
