@@ -143,7 +143,7 @@ bool ProductRepository::parseLine(string line, Product& p, string& error) const
     // 4 words at the start + at least 1 word of name + 6 words at the end
     if (words.size() < 11)
     {
-        error = "too few fields";
+        error = "too few fields (found " + to_string(words.size()) + ")";
         return false;
     }
 
@@ -304,7 +304,7 @@ bool ProductRepository::load()
         if (!ok)
         {
             skippedLines.push_back(line);
-            errors.push_back("Line " + to_string(lineNumber) + ": " + error);
+            errors.push_back("Line " + to_string(lineNumber) + ": " + error + "  [" + filename + "]");
             continue;
         }
         products.push_back(p);
@@ -401,6 +401,13 @@ bool ProductRepository::update(const Product& product, string& error)
         if (products[i].getBarcode() != product.getBarcode())
         {
             continue;
+        }
+
+        // The category is the start of the barcode, so it can never change after creation
+        if (product.getCategoryId() != products[i].getCategoryId())
+        {
+            error = "The category of a product cannot be changed.";
+            return false;
         }
 
         Product withId(products[i].getId(), product.getBarcode(), product.getAcronym(),
