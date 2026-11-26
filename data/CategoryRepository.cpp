@@ -240,10 +240,10 @@ string CategoryRepository::nextCategoryId()
             biggest = id;
         }
     }
-
-    if (biggest >= 99)
-    {
-        return "";   // no free 2-digit id left
+    int next = (biggest / 10 + 1) * 10;
+    if (next > 99) {
+        return "";
     }
-    return to_string(biggest + 1);
+   
+    return to_string(next);
 }
