@@ -224,7 +224,7 @@ bool CategoryRepository::update(const Category& category, string& error)
 // Returns "" if the ids are used up to 99.
 string CategoryRepository::nextCategoryId()
 {
-    int biggest = 9;
+    int biggest = 9;                       // so the first category is 10
     for (const Category& c : getAll())
     {
         bool twoDigits = c.categoryId.size() == 2 &&
@@ -232,7 +232,7 @@ string CategoryRepository::nextCategoryId()
             isdigit(static_cast<unsigned char>(c.categoryId[1]));
         if (!twoDigits)
         {
-            continue;   // an id that is not 2 digits is ignored
+            continue;
         }
         int id = stoi(c.categoryId);
         if (id > biggest)
@@ -240,10 +240,21 @@ string CategoryRepository::nextCategoryId()
             biggest = id;
         }
     }
-    int next = (biggest / 10 + 1) * 10;
-    if (next > 99) {
-        return "";
+
+    int next = biggest + 1;                // 80 -> 81, 90 -> 91
+    if (next > 99)
+    {
+        // the top is used: look for a free id lower down
+        for (int id = 10; id <= 99; id++)
+        {
+            bool used = false;
+            for (const Category& c : getAll())
+            {
+                if (c.categoryId == to_string(id)) { used = true; break; }
+            }
+            if (!used) return to_string(id);
+        }
+        return "";                         // really all 10 to 99 are used
     }
-   
     return to_string(next);
 }
