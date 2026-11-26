@@ -137,9 +137,9 @@ void ReportService::periodRange(ReportPeriod period, string& from, string& to)
     else if (period == PERIOD_MONTHLY) from = makeDate(1, month, year);
     else                               from = makeDate(1, 1, year);
 }
-
 ReportTable ReportService::allSales(bool includeEdited) const
 {
+
     ReportTable t;
     t.title = includeEdited ? "All sales (including edited bills)" : "All sales";
     t.headers = { "Bill id", "Order id", "Date", "Time", "Customer", "Status",
@@ -178,7 +178,7 @@ ReportTable ReportService::topSoldItems() const
 {
     ReportTable t;
     t.title = "Top ten most sold items";
-    t.headers = { "Rank", "Barcode", "Product", "Sold", "Remaining stock" };
+    t.headers = { "Rank", "Barcode", "Acronym", "Sold", "Remaining stock" };
 
     // the order lines are used (not the bill lines), so an edited order is counted once
     map<string, double> sold;
@@ -222,7 +222,7 @@ ReportTable ReportService::topStockItems() const
 {
     ReportTable t;
     t.title = "Top ten items with the most stock left";
-    t.headers = { "Rank", "Barcode", "Product", "Name", "Remaining stock" };
+    t.headers = { "Rank", "Barcode", "Acronym", "Product", "Remaining stock" };
 
     vector<Product> list = products.getAll();
     sort(list.begin(), list.end(),
