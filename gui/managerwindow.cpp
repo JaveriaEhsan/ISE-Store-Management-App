@@ -13,6 +13,8 @@
 #include "../data/OrderRepository.h"
 #include "../data/OrderDetailRepository.h"
 #include "../data/ICategoryRepository.h"
+#include "../data/BillRepository.h"
+#include "../data/BillDetailRepository.h"
 #include "../services/ReportService.h"
 
 #include "../shared.h"
