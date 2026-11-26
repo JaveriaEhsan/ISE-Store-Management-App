@@ -39,8 +39,8 @@ PaymentDialog::PaymentDialog(const string& customerName,
 
     specialSpin = new QDoubleSpinBox(this);
     specialSpin->setRange(0, MAX_SPECIAL_DISCOUNT_PERCENT);   // 0 to 8, so 9 cannot be typed
-    specialSpin->setDecimals(2);
-    specialSpin->setSingleStep(0.5);
+    specialSpin->setDecimals(0);
+    specialSpin->setSingleStep(1);
     specialSpin->setSuffix(" %");
 
     receivedSpin = new QDoubleSpinBox(this);
