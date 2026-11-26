@@ -827,14 +827,14 @@ void ManagerWindow::showBarcodes()
 
 void ManagerWindow::showInventory()
 {
-    if (repository == nullptr)
+    if (repository == nullptr || categoryRepository == nullptr)
     {
         QMessageBox::information(
             this, "Inventory", "Inventory is not connected yet.");
     }
     else
     {
-        InventoryWindow dialog(repository, this);
+        InventoryWindow dialog(repository, categoryRepository, this);
         dialog.exec();
     }
 

@@ -16,6 +16,9 @@ public:
     virtual bool add(const Category& category, std::string& error) = 0;
     // Changes name and acronym of an existing id
     virtual bool update(const Category& category, std::string& error) = 0;
+    // The id the next new category gets: the biggest id plus 1 (the first one is 10).
+    // Returns "" if all ids up to 99 are used.
+    virtual std::string nextCategoryId() = 0;
 };
 
 #endif
