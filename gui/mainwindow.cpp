@@ -198,6 +198,8 @@ MainWindow::MainWindow(IProductRepository& products, ICategoryRepository& catego
         w->setCategoryRepository(&this->categories);
         w->setSeasonRepository(&this->seasons);
         w->setApprovalRepositories(&this->approvals, &this->orders, &this->orderDetails);
+        w->setBillRepository(&this->bills);
+        w->setBillDetailRepository(&this->billDetails);
         w->setAttribute(Qt::WA_DeleteOnClose);
         connect(w, &QObject::destroyed, this, [this]() { refreshStats(); refreshBadges(); show(); });
         hide();

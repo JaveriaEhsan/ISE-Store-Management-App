@@ -213,7 +213,7 @@ void CashierWindow::refreshTable()
             double lineTotal = (it.unitPrice - it.discountPerUnit + it.taxPerUnit) * it.quantity;
 
             table->setItem(row, 0, readOnly(QString::fromStdString(it.barcode)));
-            table->setItem(row, 1, readOnly(QString::fromStdString(it.acronym)));
+            table->setItem(row, 1, readOnly(QString::fromStdString(it.name)));
             table->setItem(row, 2, readOnly(""));          // the spin box sits on top of this cell
             table->setItem(row, 3, readOnly(QString::number(it.unitPrice, 'f', 2)));
             table->setItem(row, 4, readOnly(QString::number(it.taxPerUnit, 'f', 2)));
