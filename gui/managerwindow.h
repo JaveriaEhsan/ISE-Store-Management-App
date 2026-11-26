@@ -6,6 +6,7 @@
 #include "data/BillRepository.h"
 #include "data/BillDetailRepository.h"
 #include "../data/IProductRepository.h"
+#include "../services/ReportService.h"
 
 class QWidget;
 class QPushButton;
@@ -34,7 +35,7 @@ public:
                                  OrderDetailRepository *orderDetails);
     void setBillRepository(BillRepository *bills);
     void setBillDetailRepository(BillDetailRepository *billDetails);
-    void setReportService(ReportService *service);
+    void setReportService(const ReportService *service);
 
 private slots:
     void viewBarcode();
@@ -68,7 +69,7 @@ private:
     ApprovalRepository *approvalRepository = nullptr;
     OrderRepository *orderRepository = nullptr;
     OrderDetailRepository *orderDetailRepository = nullptr;
-    ReportService *reportService = nullptr;
+    const ReportService *reportService = nullptr;
     BillRepository *billRepository = nullptr;
     BillDetailRepository *billDetailRepository = nullptr;
 

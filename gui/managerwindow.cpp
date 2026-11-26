@@ -349,7 +349,7 @@ void ManagerWindow::setCategoryRepository(ICategoryRepository* repo)
     categoryRepository = repo;
 }
 
-void ManagerWindow::setReportService(ReportService *service)
+void ManagerWindow::setReportService(const ReportService *service)
 {
     reportService = service;
 }

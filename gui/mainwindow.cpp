@@ -15,7 +15,6 @@
 
 using namespace std;
 
-// Small helper: a compact "card" with a number and a caption beside it
 static QFrame* makeStatCard(QLabel*& valueLabel, const QString& caption, QWidget* parent)
 {
     QFrame* card = new QFrame(parent);
@@ -37,10 +36,9 @@ static QFrame* makeStatCard(QLabel*& valueLabel, const QString& caption, QWidget
     return card;
 }
 
-// Puts the button text at the top and a small badge label below it
 static QLabel* addBadge(QPushButton* button, const QString& title)
 {
-    button->setText("");              
+    button->setText("");
 
     QLabel* titleLabel = new QLabel(title, button);
     titleLabel->setObjectName("buttonTitle");
@@ -51,7 +49,7 @@ static QLabel* addBadge(QPushButton* button, const QString& title)
     badge->setObjectName("buttonBadge");
     badge->setAlignment(Qt::AlignCenter);
     badge->setAttribute(Qt::WA_TransparentForMouseEvents);
-    badge->hide();                         
+    badge->hide();
 
     QVBoxLayout* layout = new QVBoxLayout(button);
     layout->setContentsMargins(0, 8, 0, 8);
@@ -63,13 +61,15 @@ static QLabel* addBadge(QPushButton* button, const QString& title)
     return badge;
 }
 
-MainWindow::MainWindow(IProductRepository& products, ICategoryRepository& categories, OrderRepository& orders,
-                       OrderDetailRepository& orderDetails, BillRepository& bills,
-                       BillDetailRepository& billDetails, ISeasonRepository& seasons,
-                       ApprovalRepository& approvals, QWidget* parent)
+MainWindow::MainWindow(IProductRepository& products, ICategoryRepository& categories,
+                       OrderRepository& orders, OrderDetailRepository& orderDetails,
+                       BillRepository& bills, BillDetailRepository& billDetails,
+                       ISeasonRepository& seasons, ApprovalRepository& approvals,
+                       QWidget* parent)
     : QMainWindow(parent), products(products), categories(categories), orders(orders),
       orderDetails(orderDetails), bills(bills), billDetails(billDetails),
-      seasons(seasons), approvals(approvals)
+      seasons(seasons), approvals(approvals),
+      reportService(orders, orderDetails, bills, products)      // new
 {
     setWindowTitle("Superstore POS");
     resize(900, 600);
@@ -81,7 +81,6 @@ MainWindow::MainWindow(IProductRepository& products, ICategoryRepository& catego
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(0);
 
-    // ---------- banner ----------
     QFrame* banner = new QFrame(center);
     banner->setObjectName("banner");
     QVBoxLayout* bannerLayout = new QVBoxLayout(banner);
@@ -99,7 +98,6 @@ MainWindow::MainWindow(IProductRepository& products, ICategoryRepository& catego
     bannerLayout->addWidget(clock);
     root->addWidget(banner);
 
-    // live date and time, updated every second
     auto updateClock = [clock]() {
         clock->setText(QDate::currentDate().toString("dddd, d MMMM yyyy") + "   |   " +
                        QTime::currentTime().toString("hh:mm:ss"));
@@ -131,7 +129,6 @@ MainWindow::MainWindow(IProductRepository& products, ICategoryRepository& catego
     bodyLayout->addWidget(managerButton, 0, Qt::AlignHCenter);
     bodyLayout->addStretch(1);
 
-    // ---------- small stat boxes at the bottom ----------
     QHBoxLayout* stats = new QHBoxLayout();
     stats->setSpacing(15);
     stats->addStretch(1);
@@ -140,12 +137,11 @@ MainWindow::MainWindow(IProductRepository& products, ICategoryRepository& catego
     stats->addStretch(1);
     bodyLayout->addLayout(stats);
 
-    refreshStats();     // fill in the first numbers
+    refreshStats();
     refreshBadges();
 
     root->addWidget(body, 1);
 
-    // ---------- footer ----------
     QLabel* footer = new QLabel("ISE Term Project  |  FAST", center);
     footer->setObjectName("footer");
     footer->setAlignment(Qt::AlignCenter);
@@ -183,13 +179,13 @@ MainWindow::MainWindow(IProductRepository& products, ICategoryRepository& catego
 
     connect(cashierButton, &QPushButton::clicked, this, [this]() {
         CashierWindow* w = new CashierWindow(this->products, this->orders,
-                                         this->orderDetails, this->bills,
-                                         this->billDetails, this->seasons,
-                                         this->approvals);
+                                             this->orderDetails, this->bills,
+                                             this->billDetails, this->seasons,
+                                             this->approvals);
         w->setAttribute(Qt::WA_DeleteOnClose);
         connect(w, &QObject::destroyed, this, [this]() { refreshStats(); refreshBadges(); show(); });
         hide();
-        w->show(); 
+        w->show();
     });
 
     connect(managerButton, &QPushButton::clicked, this, [this]() {
@@ -200,6 +196,7 @@ MainWindow::MainWindow(IProductRepository& products, ICategoryRepository& catego
         w->setApprovalRepositories(&this->approvals, &this->orders, &this->orderDetails);
         w->setBillRepository(&this->bills);
         w->setBillDetailRepository(&this->billDetails);
+        w->setReportService(&this->reportService);               // new
         w->setAttribute(Qt::WA_DeleteOnClose);
         connect(w, &QObject::destroyed, this, [this]() { refreshStats(); refreshBadges(); show(); });
         hide();
@@ -207,7 +204,6 @@ MainWindow::MainWindow(IProductRepository& products, ICategoryRepository& catego
     });
 }
 
-// Re-reads the products and updates the two small boxes at the bottom
 void MainWindow::refreshStats()
 {
     std::vector<Product> all = products.getAll();
