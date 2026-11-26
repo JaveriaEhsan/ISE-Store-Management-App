@@ -84,9 +84,7 @@ bool CategoryWindow::askCategory(Category& category, bool editing)
     QLineEdit* nameEdit = new QLineEdit(QString::fromStdString(withSpaces(category.name)), &form);
     QLineEdit* acronymEdit = new QLineEdit(QString::fromStdString(withSpaces(category.acronym)), &form);
 
-    idEdit->setMaxLength(2);
-    idEdit->setPlaceholderText("2 digits, for example 10");
-    idEdit->setReadOnly(editing);   // the id never changes
+    idEdit->setReadOnly(true);   // automatic when adding, never changes when editing
 
     QFormLayout* fields = new QFormLayout();
     fields->addRow("Id:", idEdit);
@@ -116,6 +114,12 @@ bool CategoryWindow::askCategory(Category& category, bool editing)
 void CategoryWindow::onAdd()
 {
     Category category;
+    category.categoryId = repository->nextCategoryId();   // the next free id, for example 90
+    if (category.categoryId.empty())
+    {
+        QMessageBox::warning(this, "Cannot add category", "All category ids (10 to 99) are already used.");
+        return;
+    }
     if (!askCategory(category, false))
     {
         return;

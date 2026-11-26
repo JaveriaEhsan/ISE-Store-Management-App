@@ -9,6 +9,8 @@
 #include <QHBoxLayout>
 #include <QPushButton>
 #include <QMessageBox>
+#include <QDialogButtonBox>
+#include <QLabel>
 using namespace std;
 
 // The category file stores _ instead of spaces, the screen shows spaces
@@ -32,17 +34,10 @@ AddProductDialog::AddProductDialog(IProductRepository& products,
     setWindowTitle("Add New Product");
     setMinimumWidth(420);
 
-    // Category list: only categories that exist in the category file.
-    // Text "10 - Dairy", the id is kept as item data. The box is not editable,
-    // so the manager can only pick one of these and cannot type a new id.
+    // Category list: text "10 - Dairy", the id is kept as item data
     categoryBox = new QComboBox(this);
-    categoryBox->setEditable(false);
-    vector<Category> all = categories.getAll();
-    for (size_t i = 0; i < all.size(); i++)
-    {
-        QString text = QString::fromStdString(all[i].categoryId + " - " + withSpaces(all[i].name));
-        categoryBox->addItem(text, QString::fromStdString(all[i].categoryId));
-    }
+    newCategoryButton = new QPushButton("New category...", this);
+    loadCategories("");
 
     // the barcode is made from the category, so it cannot be typed
     barcodeEdit = new QLineEdit(this);
@@ -75,7 +70,10 @@ AddProductDialog::AddProductDialog(IProductRepository& products,
     onUnitChanged();   // whole numbers for count, 3 decimals for weight
 
     QFormLayout* form = new QFormLayout();
-    form->addRow("Category:", categoryBox);
+    QHBoxLayout* categoryRow = new QHBoxLayout();
+    categoryRow->addWidget(categoryBox, 1);
+    categoryRow->addWidget(newCategoryButton);
+    form->addRow("Category:", categoryRow);
     form->addRow("Barcode (category + serial):", barcodeEdit);
     form->addRow("Acronym (max 8):", acronymEdit);
     form->addRow("Product name:", nameEdit);
@@ -97,11 +95,90 @@ AddProductDialog::AddProductDialog(IProductRepository& products,
 
     connect(unitBox, &QComboBox::currentTextChanged, this, &AddProductDialog::onUnitChanged);
     connect(categoryBox, &QComboBox::currentIndexChanged, this, &AddProductDialog::onCategoryChanged);
+    connect(newCategoryButton, &QPushButton::clicked, this, &AddProductDialog::onNewCategory);
     connect(saveButton, &QPushButton::clicked, this, &AddProductDialog::onSave);
     connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
 
     // nextBarcode works on the products in memory, so read the file first
     products.load();
+    onCategoryChanged();
+}
+
+// Fills the category list from the repository. If selectId is given, that category is selected.
+void AddProductDialog::loadCategories(const string& selectId)
+{
+    categoryBox->blockSignals(true);   // no barcode update while the list is being filled
+    categoryBox->clear();
+
+    vector<Category> all = categories.getAll();
+    int selectRow = 0;
+    for (size_t i = 0; i < all.size(); i++)
+    {
+        QString text = QString::fromStdString(all[i].categoryId + " - " + withSpaces(all[i].name));
+        categoryBox->addItem(text, QString::fromStdString(all[i].categoryId));
+        if (all[i].categoryId == selectId)
+        {
+            selectRow = (int)i;
+        }
+    }
+    if (categoryBox->count() > 0)
+    {
+        categoryBox->setCurrentIndex(selectRow);
+    }
+    categoryBox->blockSignals(false);
+}
+
+// Asks for a name and an acronym, gives the category the next free id, then selects it
+void AddProductDialog::onNewCategory()
+{
+    string id = categories.nextCategoryId();
+    if (id.empty())
+    {
+        QMessageBox::warning(this, "New category", "All category ids (10 to 99) are already used.");
+        return;
+    }
+
+    QDialog form(this);
+    form.setWindowTitle("New category");
+
+    QLineEdit* catName = new QLineEdit(&form);
+    catName->setPlaceholderText("for example Frozen Food");
+    QLineEdit* catAcronym = new QLineEdit(&form);
+    catAcronym->setPlaceholderText("for example FRZ");
+
+    QFormLayout* fields = new QFormLayout();
+    fields->addRow("Id (automatic):", new QLabel(QString::fromStdString(id), &form));
+    fields->addRow("Name:", catName);
+    fields->addRow("Acronym:", catAcronym);
+
+    QDialogButtonBox* box = new QDialogButtonBox(
+        QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &form);
+    connect(box, &QDialogButtonBox::accepted, &form, &QDialog::accept);
+    connect(box, &QDialogButtonBox::rejected, &form, &QDialog::reject);
+
+    QVBoxLayout* layout = new QVBoxLayout(&form);
+    layout->addLayout(fields);
+    layout->addWidget(box);
+
+    if (form.exec() != QDialog::Accepted)
+    {
+        return;
+    }
+
+    Category category;
+    category.categoryId = id;
+    category.name = catName->text().trimmed().toStdString();
+    category.acronym = catAcronym->text().trimmed().toStdString();
+
+    string error;
+    if (!categories.add(category, error))
+    {
+        QMessageBox::warning(this, "Cannot add category", QString::fromStdString(error));
+        return;
+    }
+
+    // show the new category and make its barcode
+    loadCategories(id);
     onCategoryChanged();
 }
 
@@ -157,20 +234,10 @@ void AddProductDialog::onSave()
         return;
     }
 
-    // The category list was read when the dialog opened. Check again that the
-    // chosen category still exists, because ProductRepository only checks the format.
-    string categoryId = categoryBox->currentData().toString().toStdString();
-    Category category;
-    if (!categories.findById(categoryId, category))
-    {
-        QMessageBox::warning(this, "Add product",
-            "This category does not exist any more. Close this window and open it again.");
-        return;
-    }
-
     // add() works on the products in memory, so read the file again first,
     // then take the barcode again in case the file changed meanwhile
     products.load();
+    string categoryId = categoryBox->currentData().toString().toStdString();
     string barcode = products.nextBarcode(categoryId);
     if (barcode.empty())
     {

@@ -84,11 +84,12 @@ void ReportsWindow::setupUI()
     messageLabel->hide();
 
     table = new QTableWidget;
+    table->verticalHeader()->setVisible(false);      // new: no second count
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
     table->setAlternatingRowColors(true);
     table->horizontalHeader()->setStretchLastSection(true);
-
+    
     totalsLabel = new QLabel;
     totalsLabel->setStyleSheet("font-size: 14px; font-weight: bold;");
 

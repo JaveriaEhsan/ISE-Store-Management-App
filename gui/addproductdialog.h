@@ -1,5 +1,6 @@
 #ifndef ADDPRODUCTDIALOG_H
 #define ADDPRODUCTDIALOG_H
+#include <string>
 #include <QDialog>
 #include "../data/IProductRepository.h"
 #include "../data/ICategoryRepository.h"
@@ -26,13 +27,18 @@ private slots:
     void onSave();
     void onUnitChanged();
     void onCategoryChanged();   // fills the barcode from the chosen category
+    void onNewCategory();       // creates a category with the next free id
 
 private:
+    // Refills the category list from the repository and selects selectId (if given)
+    void loadCategories(const std::string& selectId);
+
     IProductRepository& products;
     ICategoryRepository& categories;
     Product created;
 
     QComboBox* categoryBox;     // shows "10 - Dairy", the id is the item data
+    QPushButton* newCategoryButton;
     QLineEdit* barcodeEdit;     // read-only, filled by nextBarcode(categoryId)
     QLineEdit* acronymEdit;
     QLineEdit* nameEdit;
