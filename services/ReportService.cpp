@@ -173,15 +173,15 @@ ReportTable ReportService::allSales(bool includeEdited) const
     addTotal(t, includeEdited ? "Total sales (live bills only)" : "Total sales", payable);
     return t;
 }
-
 ReportTable ReportService::topSoldItems() const
 {
     ReportTable t;
     t.title = "Top ten most sold items";
-    t.headers = { "Rank", "Barcode", "Acronym", "Sold", "Remaining stock" };
+    t.headers = { "Rank", "Barcode", "Acronym", "Product", "Sold", "Remaining stock" };
 
     // the order lines are used (not the bill lines), so an edited order is counted once
     map<string, double> sold;
+    map<string, string> idOf;           // product id stored in the order lines
     vector<Order> all = orders.getAll();
     for (size_t i = 0; i < all.size(); i++)
     {
@@ -191,6 +191,7 @@ ReportTable ReportService::topSoldItems() const
         for (size_t j = 0; j < d.size(); j++)
         {
             sold[d[j].barcode] += d[j].quantity;
+            idOf[d[j].barcode] = d[j].productId;
         }
     }
 
@@ -202,22 +203,41 @@ ReportTable ReportService::topSoldItems() const
             return a.first < b.first;
         });
 
+    vector<Product> allProducts = products.getAll();
+
     for (size_t i = 0; i < list.size() && i < 10; i++)
     {
-        string acronym = "-";
-        string remaining = "-";
+        string acronym = list[i].first;       // last resort: the barcode
+        string name = "Not in product list";
+        string remaining = "0";
         Product p;
-        if (products.findByBarcode(list[i].first, p))
+        bool found = products.findByBarcode(list[i].first, p);
+
+        if (!found)
+        {
+            // the barcode may have changed in Product.txt, so look for the product by its id
+            for (size_t k = 0; k < allProducts.size(); k++)
+            {
+                if (allProducts[k].getId() == idOf[list[i].first])
+                {
+                    p = allProducts[k];
+                    found = true;
+                    break;
+                }
+            }
+        }
+
+        if (found)
         {
             acronym = p.getAcronym();
+            name = readable(p.getName());
             remaining = number(p.getQuantity());
         }
-        t.rows.push_back({ to_string(i + 1), list[i].first, acronym,
+        t.rows.push_back({ to_string(i + 1), list[i].first, acronym, name,
                            number(list[i].second), remaining });
     }
     return t;
 }
-
 ReportTable ReportService::topStockItems() const
 {
     ReportTable t;
