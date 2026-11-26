@@ -28,11 +28,11 @@ public:
     CashierWindow(IProductRepository& products, OrderRepository& orders,
                   OrderDetailRepository& orderDetails, BillRepository& bills,
                   BillDetailRepository& billDetails, ISeasonRepository& seasons,
-                  ApprovalRepository& approvals,QWidget* parent = nullptr);
+                  ApprovalRepository& approvals, QWidget* parent = nullptr);
 
     bool eventFilter(QObject* watched, QEvent* event) override;
-    
-    // Opens a held or paid order in this window. OrderListWindow calls it.
+
+    // Opens a held or paid order in this window. onEditExisting calls it.
     bool startEdit(const std::string& orderId);
 
 private slots:
@@ -59,26 +59,27 @@ private:
     void showProduct(const Product& p);
     void setEditMode(bool on);
 
+    // the order of these members must match the constructor's initialiser list
     IProductRepository& products;
     OrderRepository& orders;
     OrderDetailRepository& orderDetails;
     BillRepository& bills;
-    BillDetailRepository& billDetails; 
+    BillDetailRepository& billDetails;
     ISeasonRepository& seasons;
     ApprovalRepository& approvals;
-    OrderService service;               
-    std::string editingOrderId;  // "" = normal order, else the paid order being edited
+    OrderService service;
+    std::string editingOrderId;      // "" = normal order, else the paid order being edited
 
-    QLineEdit* nameEdit;
-    QLineEdit* contactEdit;
-    QTableWidget* table;
-    QLabel* totalsLabel;
-    QLabel* subtitle;
-    QPushButton* billButton;
-    QPushButton* holdButton;
-    QPushButton* resumeButton;
-    QPushButton* cancelButton;
-    QPushButton* editExistingButton;
+    QLineEdit* nameEdit = nullptr;
+    QLineEdit* contactEdit = nullptr;
+    QTableWidget* table = nullptr;
+    QLabel* totalsLabel = nullptr;
+    QLabel* subtitle = nullptr;
+    QPushButton* billButton = nullptr;
+    QPushButton* holdButton = nullptr;
+    QPushButton* resumeButton = nullptr;
+    QPushButton* cancelButton = nullptr;
+    QPushButton* editExistingButton = nullptr;
 };
 
 #endif

@@ -256,9 +256,19 @@ void CashierWindow::refreshTable()
 
 void CashierWindow::showTotals()
 {
-    double seasonal = service.currentSeasonalPercent(seasons);
-    BillTotals t = service.getTotals(seasonal, 0);      // special discount is chosen in the payment dialog
+    double seasonalPercent = service.currentSeasonalPercent(seasons);
+    BillTotals t = service.getTotals(seasonalPercent, 0);   // special discount is chosen in the payment dialog
 
+    // seasonal discount line, shown only when a season is active
+    QString seasonalLine;
+    if (seasonalPercent > 0)
+    {
+        seasonalLine = QString("Seasonal discount (%1%): <b>- %2 PKR</b><br>")
+            .arg(seasonalPercent, 0, 'g', 6)
+            .arg(t.seasonalAmount, 0, 'f', 2);
+    }
+
+    // edit mode: old bill and what to collect or refund
     QString editInfo;
     double oldPayable = 0;
     if (!editingOrderId.empty() && service.editedBillPayable(bills, oldPayable))
@@ -272,11 +282,13 @@ void CashierWindow::showTotals()
 
     totalsLabel->setText(
         QString("Without tax: %1 &nbsp;&nbsp; Discount: %2 &nbsp;&nbsp; Tax: %3<br>"
+                "%4"
                 "<span style='font-size:22px; font-weight:bold; color:#1f3a5f;'>"
-                "PAYABLE: %4 PKR</span>%5")
+                "PAYABLE: %5 PKR</span>%6")
             .arg(t.totalWithoutTax, 0, 'f', 2)
             .arg(t.totalDiscount, 0, 'f', 2)
             .arg(t.totalTax, 0, 'f', 2)
+            .arg(seasonalLine)
             .arg(t.totalPayable, 0, 'f', 2)
             .arg(editInfo));
 }
