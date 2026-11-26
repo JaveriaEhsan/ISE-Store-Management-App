@@ -1078,7 +1078,8 @@ void ManagerWindow::showSeasons()
 void ManagerWindow::showApprovals()
 {
     if (approvalRepository == nullptr || orderRepository == nullptr
-        || orderDetailRepository == nullptr)
+        || orderDetailRepository == nullptr || repository == nullptr
+        || billRepository == nullptr || billDetailRepository == nullptr)
     {
         QMessageBox::information(
             this, "Approvals", "Approvals are not connected yet.");
@@ -1087,7 +1088,8 @@ void ManagerWindow::showApprovals()
     }
 
     ManagerApprovalDialog dialog(*approvalRepository, *orderRepository,
-                                 *orderDetailRepository, this);
+                                 *orderDetailRepository, *repository,
+                                 *billRepository, *billDetailRepository, this);
     dialog.exec();
 
     updatePendingCount();
@@ -1109,4 +1111,14 @@ void ManagerWindow::showReports()
     dialog.exec();
 
     syncSidebarSelection();
+}
+
+void ManagerWindow::setBillRepository(BillRepository* repo)
+{
+    billRepository = repo;
+}
+
+void ManagerWindow::setBillDetailRepository(BillDetailRepository* repo)
+{
+    billDetailRepository = repo;
 }

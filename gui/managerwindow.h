@@ -3,6 +3,8 @@
 
 #include <QMainWindow>
 #include <QStringList>
+#include "data/BillRepository.h"
+#include "data/BillDetailRepository.h"
 #include "../data/IProductRepository.h"
 
 class QWidget;
@@ -30,6 +32,8 @@ public:
     void setCategoryRepository(ICategoryRepository *repo);
     void setApprovalRepositories(ApprovalRepository *approvals, OrderRepository *orders,
                                  OrderDetailRepository *orderDetails);
+    void setBillRepository(BillRepository *bills);
+    void setBillDetailRepository(BillDetailRepository *billDetails);
     void setReportService(ReportService *service);
 
 private slots:
@@ -65,6 +69,8 @@ private:
     OrderRepository *orderRepository = nullptr;
     OrderDetailRepository *orderDetailRepository = nullptr;
     ReportService *reportService = nullptr;
+    BillRepository *billRepository = nullptr;
+    BillDetailRepository *billDetailRepository = nullptr;
 
     QWidget *sidebar;
     QWidget *mainContent;
